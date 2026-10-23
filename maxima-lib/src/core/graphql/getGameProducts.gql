@@ -1,0 +1,23 @@
+query getGameProducts($offerIds: [String!]!, $locale: Locale) {
+    gameProducts(offerIds: $offerIds, locale: $locale) {
+        items {
+            name
+            originOfferId
+            baseItem {
+                title
+                baseGameSlug
+                regionalRatingV2 {
+                    ageRating {
+                        minAge
+                        __typename
+                    }
+                    __typename
+                }
+                __typename
+            }
+            gameSlug
+            __typename
+        }
+        __typename
+    }
+}

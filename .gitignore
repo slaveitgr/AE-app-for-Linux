@@ -1,0 +1,10 @@
+/target
+/.vscode
+/.idea
+
+
+/dist/
+/ea-assets/
+
+__pycache__/
+*.pyc

@@ -1,0 +1,38 @@
+query GetScreenshotsAndVideos($id: String!, $locale: String!) {
+  sectionVideosScreenshots(locale: $locale, id: $id) {
+    screenshotsAndVideosCollection(limit: 100) {
+      items {
+        __typename
+        ... on Entry {
+          sys {
+            id
+            __typename
+          }
+          __typename
+        }
+        ... on Screenshot {
+          sys {
+            id
+            __typename
+          }
+          image {
+            url
+            __typename
+          }
+          __typename
+        }
+        ... on YoutubeVideo {
+          version {
+            title
+            thumbnail
+            url
+            __typename
+          }
+          __typename
+        }
+      }
+      __typename
+    }
+    __typename
+  }
+}

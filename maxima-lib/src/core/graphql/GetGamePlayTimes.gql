@@ -1,0 +1,15 @@
+query GetGamePlayTimes($gameSlugs: [String!]!) {
+  me {
+    id: pd
+    recentGames(gameSlugs: $gameSlugs, paging: {limit: 5}) {
+      items {
+        gameSlug
+        lastSessionEndDate
+        totalPlayTimeSeconds
+        __typename
+      }
+      __typename
+    }
+    __typename
+  }
+}

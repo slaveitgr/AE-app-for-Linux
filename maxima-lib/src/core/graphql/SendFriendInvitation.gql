@@ -1,0 +1,6 @@
+mutation SendFriendInvitation($friendPd: String!) {
+  friendInvitationSend(input: {pd: $friendPd}) {
+    success
+    __typename
+  }
+}

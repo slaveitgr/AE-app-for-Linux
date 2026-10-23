@@ -1,0 +1,170 @@
+query GetComposableGameHub($id: String!, $locale: String = "en") {
+  gameHubCollection(where: {videoGame: {internalName: $id}}, locale: $locale, limit: 1) {
+    items {
+      name
+      accessibilityLink
+      loyaltyUpsellVg {
+        internalName
+        __typename
+      }
+      ownedHeroBackground(locale: $locale) {
+        image16X9 {
+          url
+          __typename
+        }
+        image4X1 {
+          url
+          __typename
+        }
+        __typename
+      }
+      addonsFeatureTout {
+        ...sectionToutsFragment
+        __typename
+      }
+      ownedLayoutCollection(limit: 50) {
+        items {
+          ... on OverviewPanel {
+            sys {
+              id
+              __typename
+            }
+            title
+            __typename
+          }
+          ... on SectionVideosScreenshots {
+            sys {
+              id
+              __typename
+            }
+            title
+            __typename
+          }
+          ... on SectionDlc {
+            sys {
+              id
+              __typename
+            }
+            title
+            __typename
+          }
+          ... on SectionProducts {
+            ...sectionProductsFragment
+            __typename
+          }
+          ... on SectionTouts {
+            ...sectionToutsFragment
+            __typename
+          }
+          ... on SectionItemGallery {
+            ...sectionItemGalleryFragment
+            __typename
+          }
+          ... on SectionCommunityCreations {
+            ...sectionCommunityCreationsFragment
+            __typename
+          }
+          ... on SectionProductFeatureTable {
+            ...productFeatureTableFragment
+            __typename
+          }
+          __typename
+        }
+        __typename
+      }
+      unownedLayoutCollection(limit: 50) {
+        items {
+          ... on OverviewPanel {
+            sys {
+              id
+              __typename
+            }
+            title
+            __typename
+          }
+          ... on SectionVideosScreenshots {
+            sys {
+              id
+              __typename
+            }
+            title
+            __typename
+          }
+          ... on SectionDlc {
+            sys {
+              id
+              __typename
+            }
+            title
+            __typename
+          }
+          ... on SectionProducts {
+            ...sectionProductsFragment
+            __typename
+          }
+          ... on SectionTouts {
+            ...sectionToutsFragment
+            __typename
+          }
+          ... on SectionItemGallery {
+            ...sectionItemGalleryFragment
+            __typename
+          }
+          ... on SectionCommunityCreations {
+            ...sectionCommunityCreationsFragment
+            __typename
+          }
+          ... on SectionProductFeatureTable {
+            ...productFeatureTableFragment
+            __typename
+          }
+          __typename
+        }
+        __typename
+      }
+      __typename
+    }
+    __typename
+  }
+}
+
+fragment sectionProductsFragment on SectionProducts {
+  name
+  sys {
+    id
+    __typename
+  }
+  __typename
+}
+
+fragment sectionToutsFragment on SectionTouts {
+  sys {
+    id
+    __typename
+  }
+  __typename
+}
+
+fragment sectionItemGalleryFragment on SectionItemGallery {
+  sys {
+    id
+    __typename
+  }
+  __typename
+}
+
+fragment sectionCommunityCreationsFragment on SectionCommunityCreations {
+  sys {
+    id
+    __typename
+  }
+  __typename
+}
+
+fragment productFeatureTableFragment on SectionProductFeatureTable {
+  sys {
+    id
+    __typename
+  }
+  __typename
+}

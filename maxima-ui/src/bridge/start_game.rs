@@ -1,0 +1,59 @@
+use crate::{bridge_thread::BackendError, GameInfo, GameSettings};
+use log::{debug, error, info};
+use maxima::core::{
+    launch::{self, LaunchError, LaunchMode, LaunchOptions, ProtonLaunchOptions},
+    LockedMaxima,
+};
+
+pub async fn start_game_request(
+    maxima_arc: LockedMaxima,
+    game_info: GameInfo,
+    game_settings: Option<GameSettings>,
+) -> Result<(), LaunchError> {
+    let maxima = maxima_arc.lock().await;
+    let logged_in = maxima.auth_storage().lock().await.current().is_some();
+    if !logged_in {
+        info!("Ignoring request to start game, not logged in.");
+        return Ok(()); // TODO(headassbtw): look into if it's worth properly reporting this
+    }
+
+    debug!("got request to start game {:?}", game_info.offer);
+
+    // This is kind of gross, but it kind of makes sense to have?
+    let (exe_override, args, cloud_saves, proton) = if let Some(settings) = game_settings {
+        (
+            if settings.exe_override.is_empty() {
+                None
+            } else {
+                Some(settings.exe_override)
+            },
+            launch::parse_arguments(&settings.launch_args),
+            settings.cloud_saves,
+            ProtonLaunchOptions {
+                proton_path: if settings.proton_path.trim().is_empty() {
+                    None
+                } else {
+                    Some(settings.proton_path.trim().into())
+                },
+                proton_log: settings.proton_log,
+                disable_esync: settings.disable_esync,
+                disable_fsync: settings.disable_fsync,
+            },
+        )
+    } else {
+        (None, Vec::new(), true, ProtonLaunchOptions::default())
+    };
+
+    drop(maxima);
+    launch::start_game(
+        maxima_arc.clone(),
+        LaunchMode::Online(game_info.offer),
+        LaunchOptions {
+            path_override: exe_override,
+            arguments: args,
+            cloud_saves,
+            proton,
+        },
+    )
+    .await
+}

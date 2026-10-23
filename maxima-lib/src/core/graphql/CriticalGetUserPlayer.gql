@@ -1,0 +1,26 @@
+query CriticalGetUserPlayer {
+  me {
+    id: pd
+    pd
+    ageGroup
+    isBanned
+    banInfo {
+      endDate
+      __typename
+    }
+    player {
+      ...CriticalPlayer
+      __typename
+    }
+    __typename
+  }
+}
+
+fragment CriticalPlayer on Player {
+  id: pd
+  pd
+  psd
+  displayName
+  nickname
+  __typename
+}

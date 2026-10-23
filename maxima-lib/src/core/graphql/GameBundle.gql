@@ -1,0 +1,32 @@
+query GameBundle($bundles: [GameBundleInput!]!, $region: String = "en-us") {
+  gameBundleForOffer(bundles: $bundles, region: $region) {
+    id: offerId
+    offerId
+    installDirectory
+    bundleSize {
+      totalUncompressedSize
+      totalCompressedSize
+      requiredCompressedSize
+      __typename
+    }
+    eaEula {
+      url
+      name
+      __typename
+    }
+    additionalEula {
+      name
+      installFlag
+      installName
+      locationIdentifier {
+        ... on EulaLocationUrl {
+          url
+          __typename
+        }
+        __typename
+      }
+      __typename
+    }
+    __typename
+  }
+}

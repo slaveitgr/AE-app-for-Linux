@@ -1,0 +1,22 @@
+{
+    "groupActivity_groupType": "",
+    "groupActivity_groupGuid": "",
+    "groupActivity_groupName": "",
+    "groupActivity_groupSize": 16,
+    "groupActivity_invited": false,
+    "groupActivity_isPublic": false,
+    "gameActivity_broadcastUrl": "",
+    "gameActivity_gamePresence": "{\"data\":{\"presence\":\"\",\"session\":\"\"},\"version\":\"1.0\"}",
+    "gameActivity_gameTitle": "STAR WARS™ Battlefront™ II",
+    "gameActivity_multiplayerId": "1035052",
+    "gameActivity_productId": "Origin.OFR.50.0002148",
+    "gameActivity_richPresence": "{\"data\":\"In the menus\",\"version\":\"1.0\"}",
+    "gameActivity_invited": false,
+    "gameActivity_joinable": false,
+    "gameActivity_joinableInviteOnly": false,
+    "gameActivity_isNull": false,
+    "presence_status": "STAR WARS™ Battlefront™ II In the menus",
+    "presence_availability": 1,
+    "presence_invisible": false,
+    "presence_null": false
+}

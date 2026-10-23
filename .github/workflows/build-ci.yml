@@ -1,0 +1,83 @@
+name: Linux build and preview
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  linux:
+    name: Native Linux · Rust 1.93.0
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      CARGO_TERM_COLOR: always
+      CARGO_BUILD_JOBS: "2"
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+
+      - name: Install Linux build and preview dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y \
+            build-essential pkg-config protobuf-compiler \
+            zlib1g-dev liblzma-dev \
+            libx11-dev libxcursor-dev libxi-dev libxrandr-dev \
+            libxcb1-dev libxkbcommon-dev libxkbcommon-x11-dev libwayland-dev \
+            libgl-dev libegl-dev libgl1-mesa-dri \
+            xvfb xauth
+
+      - name: Install pinned stable Rust toolchain
+        run: |
+          rustup toolchain install 1.93.0 --profile minimal
+          rustup override set 1.93.0
+          rustc --version
+          cargo --version
+
+      - name: Run library tests
+        run: cargo test --locked -p maxima-lib --lib
+
+      - name: Build native client and companion binaries
+        run: cargo build --locked --release -p maxima-ui -p maxima-bootstrap -p maxima-cli
+
+      - name: Render isolated local preview
+        env:
+          LIBGL_ALWAYS_SOFTWARE: "1"
+          GALLIUM_DRIVER: llvmpipe
+          XDG_DATA_HOME: ${{ runner.temp }}/maxima-preview/data
+          XDG_CONFIG_HOME: ${{ runner.temp }}/maxima-preview/config
+          XDG_CACHE_HOME: ${{ runner.temp }}/maxima-preview/cache
+          XDG_RUNTIME_DIR: ${{ runner.temp }}/maxima-preview/runtime
+        run: |
+          mkdir -p "$XDG_DATA_HOME" "$XDG_CONFIG_HOME" "$XDG_CACHE_HOME" "$XDG_RUNTIME_DIR" preview-artifacts
+          chmod 700 "$XDG_RUNTIME_DIR"
+          timeout 60s xvfb-run -a -s '-screen 0 1440x900x24' \
+            ./target/release/maxima --preview --preview-page library \
+            --screenshot "$GITHUB_WORKSPACE/preview-artifacts/library.png"
+          test -s preview-artifacts/library.png
+
+      - name: Package native binaries
+        run: |
+          ./scripts/package-linux.sh "$RUNNER_TEMP/EA-for-Linux"
+          tar -czf preview-artifacts/AE-app-for-Linux-x86_64.tar.gz \
+            -C "$RUNNER_TEMP" EA-for-Linux
+
+      - name: Upload native binaries and local preview
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: AE-app-for-Linux-ubuntu24.04-x86_64
+          if-no-files-found: error
+          path: |
+            preview-artifacts/AE-app-for-Linux-x86_64.tar.gz
+            preview-artifacts/library.png

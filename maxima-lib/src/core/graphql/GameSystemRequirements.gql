@@ -1,0 +1,13 @@
+query GameSystemRequirements($slug: String!, $locale: Locale!, $operatingSystems: [OperatingSystem!]) {
+  game(slug: $slug, locale: $locale) {
+    id
+    gameType
+    systemRequirements(operatingSystems: $operatingSystems) {
+      minimum
+      recommended
+      platform
+      __typename
+    }
+    __typename
+  }
+}

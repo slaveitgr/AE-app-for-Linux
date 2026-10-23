@@ -1,0 +1,39 @@
+query GetHeroBackgroundImage($gameSlug: String!, $locale: String!) {
+  gameHubCollection(where: {videoGame: {internalName: $gameSlug}}, locale: $locale, limit: 1) {
+    items {
+      backgroundVideo(locale: $locale) {
+        url
+        __typename
+      }
+      heroBackground(locale: $locale) {
+        aspect1x1Image: image1X1 {
+          path: url
+          __typename
+        }
+        aspect2x1Image: image2X1 {
+          path: url
+          __typename
+        }
+        aspect5x3Image: image5X3 {
+          path: url
+          __typename
+        }
+        aspect7x5Image: image7X5 {
+          path: url
+          __typename
+        }
+        aspect8x3Image: image8X3 {
+          path: url
+          __typename
+        }
+        aspect10x3Image: image10X3 {
+          path: url
+          __typename
+        }
+        __typename
+      }
+      __typename
+    }
+    __typename
+  }
+}

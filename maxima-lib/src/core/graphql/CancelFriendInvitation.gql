@@ -1,0 +1,6 @@
+mutation CancelFriendInvitation($friendPd: String!) {
+  friendInvitationCancel(input: {pd: $friendPd}) {
+    success
+    __typename
+  }
+}

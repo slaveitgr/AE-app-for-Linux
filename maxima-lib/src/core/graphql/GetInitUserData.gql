@@ -1,0 +1,12 @@
+query GetInitUserData {
+  me {
+    id: pd
+    storefrontRegion
+    subscriptions {
+      level
+      status
+      __typename
+    }
+    __typename
+  }
+}

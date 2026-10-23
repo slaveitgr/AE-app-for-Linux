@@ -1,0 +1,12 @@
+[package]
+name = "maxima-resources"
+version = "0.1.0"
+authors = ["Sean Kahler <sean@battleda.sh>"]
+edition = "2021"
+
+[dependencies]
+winres = "0.1.12"
+
+[lib]
+name = "maxima_resources"
+path = "src/lib.rs"

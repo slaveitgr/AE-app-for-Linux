@@ -1,0 +1,6 @@
+mutation RejectFriendInvitation($friendPd: String!) {
+  friendInvitationReject(input: {pd: $friendPd}) {
+    success
+    __typename
+  }
+}

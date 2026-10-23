@@ -1,0 +1,32 @@
+query FullGameOverview($gameId: String!, $locale: Locale = "en-us") {
+  game(id: $gameId, locale: $locale) {
+    id
+    title
+    shortDescription
+    legalFlags
+    gameType
+    releaseDate
+    genres {
+      id
+      name
+      slug
+      __typename
+    }
+    supportedLanguages {
+      id
+      name
+      __typename
+    }
+    publisher {
+      id
+      name
+      __typename
+    }
+    studio {
+      id
+      name
+      __typename
+    }
+    __typename
+  }
+}

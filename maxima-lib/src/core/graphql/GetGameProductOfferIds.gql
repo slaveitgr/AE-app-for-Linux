@@ -1,0 +1,54 @@
+query GetGameProductOfferIds($slug: String!, $locale: Locale!, $overrideCountryCode: String!) {
+  game(slug: $slug, locale: $locale) {
+    id
+    isFreeToPlay
+    slug
+    gameType
+    products(availabilities: [ACQUIRABLE]) {
+      items {
+        id
+        originOfferId
+        lifecycleStatus {
+          ...lifecycleStatusFragment
+          __typename
+        }
+        trialDetails {
+          trialType
+          __typename
+        }
+        purchaseStatus {
+          purchasable
+          __typename
+        }
+        __typename
+      }
+      __typename
+    }
+    comparisonTable {
+      id
+      __typename
+    }
+    lowestPriceGameProduct(availabilities: [ACQUIRABLE], overrideCountryCode: $overrideCountryCode) {
+      id
+      isFree
+      edition
+      name
+      originOfferId
+      __typename
+    }
+    __typename
+  }
+}
+
+fragment lifecycleStatusFragment on LifecycleStatus {
+  lifecycleType
+  downloadDate
+  playableStartDate
+  playableEndDate
+  acquisitionStartDate
+  acquisitionEndDate
+  revealDate
+  sunsetDate
+  isEarlyAccess
+  __typename
+}

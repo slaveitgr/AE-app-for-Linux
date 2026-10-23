@@ -1,0 +1,18 @@
+query ownedGameAchievements($offerId: String!, $playerPsd: String!, $locale: Locale!) {
+  achievements(offerId: $offerId, playerPsd: $playerPsd, locale: $locale) {
+    id
+    achievements {
+      id: cacheKey
+      name
+      description
+      awardCount
+      howTo
+      images {
+        path
+        __typename
+      }
+      __typename
+    }
+    __typename
+  }
+}

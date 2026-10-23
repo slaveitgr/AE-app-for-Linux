@@ -1,0 +1,50 @@
+query inGamePresenceData($offerIds: [String!]!, $locale: Locale = "en-us") {
+  gameProducts(locale: $locale, offerIds: $offerIds) {
+    items {
+      id
+      gameSlug
+      baseItem(availabilities: [VISIBLE]) {
+        id
+        title
+        shortDescription
+        baseGameSlug
+        lifecycleStatus {
+          revealDate
+          __typename
+        }
+        gameType
+        playableInPlatforms
+        prereleaseGameType
+        keyArt {
+          title
+          aspect1x1Image {
+            path
+            height
+            width
+            __typename
+          }
+          aspect16x9Image {
+            path
+            height
+            width
+            __typename
+          }
+          __typename
+        }
+        primaryLogo {
+          title
+          largestImage {
+            path
+            height
+            width
+            __typename
+          }
+          __typename
+        }
+        __typename
+      }
+      __typename
+    }
+    __typename
+  }
+}

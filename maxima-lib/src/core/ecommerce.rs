@@ -1,0 +1,251 @@
+#![allow(non_snake_case)]
+
+use reqwest::{Client, StatusCode};
+
+use super::endpoints::API_ECOMMERCE;
+use serde::{Deserialize, Serialize};
+use thiserror::Error;
+
+#[derive(Error, Debug)]
+pub enum ECommerceError {
+    #[error(transparent)]
+    Request(#[from] reqwest::Error),
+    #[error(transparent)]
+    Json(#[from] serde_json::Error),
+
+    #[error("ECommerce request failed: {0}")]
+    Http(String),
+}
+
+pub async fn request_entitlements(
+    access_token: &str,
+    user_id: &str,
+    group_name: Option<&str>,
+) -> Result<Vec<CommerceEntitlement>, ECommerceError> {
+    let mut query = Vec::new();
+
+    if let Some(group_name) = group_name {
+        query.push(("groupName", group_name));
+    }
+
+    let res = Client::new()
+        .get(format!("{}/entitlements/{}", API_ECOMMERCE, user_id))
+        .query(&query)
+        .header("AuthToken", access_token)
+        .header("Accept", "application/json")
+        .send()
+        .await?;
+    if res.status() != StatusCode::OK {
+        return Err(ECommerceError::Http(res.text().await?));
+    }
+
+    let text = res.text().await?;
+    let result: CommerceEntitlements = serde_json::from_str(text.as_str())?;
+    Ok(result.entitlements)
+}
+
+pub async fn request_offer_data(
+    access_token: &str,
+    offer: &str,
+    locale: &str,
+) -> Result<CommerceOffer, ECommerceError> {
+    let res = Client::new()
+        .get(&format!("{}/public/{}/{}", API_ECOMMERCE, offer, locale))
+        .header("AuthToken", access_token)
+        .send()
+        .await?;
+    if res.status() != StatusCode::OK {
+        return Err(ECommerceError::Http(res.text().await?));
+    }
+
+    let text = res.text().await?;
+    let result = serde_json::from_str(text.as_str())?;
+    Ok(result)
+}
+
+macro_rules! ecommerce_type {
+    (
+        $(#[$message_attr:meta])*
+        $message_name:ident;
+        attr {
+            $(
+                $(#[$attr_field_attr:meta])*
+                $attr_field:ident: $attr_field_type:ty
+            ),* $(,)?
+        },
+        data {
+            $(
+                $(#[$field_attr:meta])*
+                $field:ident: $field_type:ty
+            ),* $(,)?
+        }
+    ) => {
+        paste::paste! {
+            // Main struct definition
+            $(#[$message_attr])*
+            #[derive(Default, Debug, Clone, Serialize, Deserialize, PartialEq)]
+            #[serde(rename_all = "camelCase")]
+            pub struct [<Commerce $message_name>] {
+                $(
+                    $(#[$attr_field_attr])*
+                    #[serde(rename = "@" $attr_field)]
+                    pub [<attr_ $attr_field>]: $attr_field_type,
+                )*
+                $(
+                    $(#[$field_attr])*
+                    pub $field: $field_type,
+                )*
+            }
+        }
+    }
+}
+
+macro_rules! ecommerce_enum {
+    ($name:ident, { $($field:tt)* }) => {
+        paste::paste! {
+            #[derive(Default, Debug, Clone, Serialize, Deserialize, PartialEq)]
+            #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+            pub enum [<Commerce $name>] {
+                #[default]
+                $($field)*
+            }
+        }
+    };
+}
+
+ecommerce_type!(
+    PublishingAttributes;
+    attr {},
+    data {
+        content_id: Option<String>,
+        grey_market_controls: Option<bool>,
+        is_downloadable: bool,
+        game_distribution_sub_type: Option<String>,
+        origin_display_type: String,
+        is_published: bool,
+    }
+);
+
+ecommerce_type!(
+    FulfillmentAttributes;
+    attr {},
+    data {
+        cloud_save_configuration_override: Option<String>,
+        execute_path_override: Option<String>,
+        installation_directory: Option<String>,
+        install_check_override: Option<String>,
+    }
+);
+
+ecommerce_enum!(Platform, {
+    Pcwin,
+});
+
+ecommerce_type!(
+    Software;
+    attr {
+    },
+    data {
+        software_platform: CommercePlatform,
+        software_id: String,
+        fulfillment_attributes: CommerceFulfillmentAttributes,
+    }
+);
+
+ecommerce_type!(
+    SoftwareList;
+    attr {},
+    data {
+        software: Vec<CommerceSoftware>,
+    }
+);
+
+impl CommerceSoftwareList {
+    pub fn software(&self, platform: CommercePlatform) -> Option<&CommerceSoftware> {
+        self.software
+            .iter()
+            .find(|x| x.software_platform == platform)
+    }
+}
+
+ecommerce_type!(
+    Publishing;
+    attr {},
+    data {
+        publishing_attributes: CommercePublishingAttributes,
+        software_list: Option<CommerceSoftwareList>,
+    }
+);
+
+ecommerce_type!(
+    LocalizableAttributes;
+    attr {},
+    data {
+        display_name: String,
+    }
+);
+
+ecommerce_type!(
+    Offer;
+    attr {},
+    data {
+        item_name: String,
+        offer_type: String,
+        offer_id: String,
+        project_number: String,
+        item_id: String,
+        store_group_id: String,
+        finance_id: String,
+        default_locale: String,
+        publishing: CommercePublishing,
+        localizable_attributes: CommerceLocalizableAttributes,
+    }
+);
+
+ecommerce_enum!(EntitlementExternalType, {
+    Epic,
+    Steam,
+    Subscription,
+    XgpVaultGame,
+});
+
+ecommerce_enum!(EntitlementType, {
+    Default,
+    OnlineAccess,
+    OriginDownload,
+});
+
+ecommerce_enum!(EntitlementStatus, {
+    Active,
+});
+
+ecommerce_type!(
+    Entitlement;
+    attr {},
+    data {
+        external_type: Option<CommerceEntitlementExternalType>,
+        product_id: Option<String>,
+        last_modified_date: String,
+        entitlement_source: Option<String>,
+        entitlement_id: u64,
+        grant_date: String,
+        entitlement_type: CommerceEntitlementType,
+        version: u16,
+        is_consumable: bool,
+        product_catalog: Option<String>,
+        group_name: Option<String>,
+        entitlement_tag: String,
+        origin_permissions: String,
+        use_count: u32,
+        project_id: Option<String>,
+        status: CommerceEntitlementStatus,
+    }
+);
+
+ecommerce_type!(
+    Entitlements;
+    attr {},
+    data {
+        entitlements: Vec<CommerceEntitlement>,
+    }
+);

@@ -1,0 +1,55 @@
+query GetProductFeatureTable($id: String!, $locale: String = "en") {
+  sectionProductFeatureTable(id: $id, locale: $locale) {
+    featureGroupsCollection {
+      items {
+        sys {
+          id
+          __typename
+        }
+        title {
+          value
+          __typename
+        }
+        image {
+          image {
+            url
+            __typename
+          }
+          __typename
+        }
+        featurePanesCollection {
+          items {
+            sys {
+              id
+              __typename
+            }
+            tabTitle {
+              value
+              __typename
+            }
+            heading {
+              value
+              __typename
+            }
+            body {
+              value
+              __typename
+            }
+            image {
+              image {
+                url
+                __typename
+              }
+              __typename
+            }
+            __typename
+          }
+          __typename
+        }
+        __typename
+      }
+      __typename
+    }
+    __typename
+  }
+}

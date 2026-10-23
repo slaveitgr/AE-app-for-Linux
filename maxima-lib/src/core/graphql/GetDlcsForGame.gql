@@ -1,0 +1,193 @@
+query GetDlcsForGame($slug: String!, $offset: Int = 0, $limit: Int = 10, $locale: Locale = "en-us", $addonType: [GameAddonType!]!, $dlcGameSlugs: [String!]) {
+  game(locale: $locale, slug: $slug) {
+    id
+    expansions: addons(slugs: $dlcGameSlugs, gameAddonType: $addonType, paging: {offset: $offset, limit: $limit}, orderBy: {field: RELEASE_DATE, direction: DESC}, productLifecycleFilter: {availabilities: [ACQUIRABLE], lifecycleTypes: [SELF]}) {
+      hasNextPage
+      hasPreviousPage
+      totalCount
+      items {
+        ...gameExpansionFields
+        ...gameMicrocontentFields
+        ...gameBundlePackFields
+        ...gameCurrencyFields
+        __typename
+      }
+      __typename
+    }
+    __typename
+  }
+}
+
+fragment gameExpansionFields on GameExpansion {
+  id
+  title
+  slug
+  gameAddonType
+  shortDescription
+  releaseDate
+  products {
+    items {
+      id
+      slug
+      availableInSubscription {
+        id
+        slug
+        __typename
+      }
+      __typename
+    }
+    __typename
+  }
+  gamePlatforms {
+    id
+    name
+    gamePlatform
+    __typename
+  }
+  keyArt {
+    aspect1x1Image {
+      path
+      __typename
+    }
+    __typename
+  }
+  primaryLogo {
+    largestImage {
+      path
+      __typename
+    }
+    title
+    __typename
+  }
+  __typename
+}
+
+fragment gameMicrocontentFields on GameMicrocontent {
+  id
+  title
+  slug
+  gameAddonType
+  shortDescription
+  releaseDate
+  gamePlatforms {
+    id
+    name
+    gamePlatform
+    __typename
+  }
+  products {
+    items {
+      id
+      slug
+      availableInSubscription {
+        id
+        slug
+        __typename
+      }
+      __typename
+    }
+    __typename
+  }
+  keyArt {
+    path
+    aspect1x1 {
+      path
+      __typename
+    }
+    aspect1x1Image {
+      path
+      __typename
+    }
+    __typename
+  }
+  primaryLogo {
+    largestImage {
+      path
+      __typename
+    }
+    title
+    __typename
+  }
+  __typename
+}
+
+fragment gameBundlePackFields on GameBundlePack {
+  id
+  title
+  slug
+  gameAddonType
+  shortDescription
+  releaseDate
+  products {
+    items {
+      id
+      slug
+      availableInSubscription {
+        id
+        slug
+        __typename
+      }
+      __typename
+    }
+    __typename
+  }
+  gamePlatforms {
+    id
+    name
+    gamePlatform
+    __typename
+  }
+  keyArt {
+    aspect1x1Image {
+      path
+      __typename
+    }
+    __typename
+  }
+  primaryLogo {
+    largestImage {
+      path
+      __typename
+    }
+    title
+    __typename
+  }
+  __typename
+}
+
+fragment gameCurrencyFields on GameCurrency {
+  id
+  slug
+  title
+  shortDescription
+  releaseDate
+  gameAddonType
+  keyArt {
+    aspect1x1Image {
+      path
+      __typename
+    }
+    __typename
+  }
+  products {
+    totalCount
+    items {
+      id
+      denomination {
+        value
+        __typename
+      }
+      __typename
+    }
+    __typename
+  }
+  primaryLogo {
+    largestImage {
+      path
+      __typename
+    }
+    title
+    __typename
+  }
+  __typename
+}
