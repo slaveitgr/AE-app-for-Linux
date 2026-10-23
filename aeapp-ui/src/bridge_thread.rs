@@ -516,11 +516,8 @@ impl BridgeThread {
                 AeAppLibRequest::InstallGameRequest(offer, path) => {
                     let result = async {
                         let mut aeapp = aeapp_arc.lock().await;
-                        let builds =
-                            aeapp.content_manager().service().available_builds(&offer).await?;
-                        let build = builds
-                            .live_build()
-                            .ok_or_else(|| BackendError::NoLiveBuild(offer.clone()))?;
+                        let build =
+                            aeapp.content_manager().service().windows_live_build(&offer).await?;
                         let game = QueuedGameBuilder::default()
                             .offer_id(offer)
                             .build_id(build.build_id().to_owned())

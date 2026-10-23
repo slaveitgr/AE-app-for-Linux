@@ -57,7 +57,7 @@ jobs:
       - name: Build native client and companion binaries
         run: cargo build --locked --release -p aeapp-ui -p aeapp-bootstrap -p aeapp-cli
 
-      - name: Render isolated library and downloads previews
+      - name: Render isolated interface previews
         env:
           LIBGL_ALWAYS_SOFTWARE: "1"
           GALLIUM_DRIVER: llvmpipe
@@ -68,7 +68,7 @@ jobs:
         run: |
           mkdir -p "$XDG_DATA_HOME" "$XDG_CONFIG_HOME" "$XDG_CACHE_HOME" "$XDG_RUNTIME_DIR" preview-artifacts
           chmod 700 "$XDG_RUNTIME_DIR"
-          for page in library downloads; do
+          for page in library home browse ea-play profile settings downloads; do
             timeout 60s xvfb-run -a -s '-screen 0 1440x900x24' \
               ./target/release/aeapp --preview --preview-page "$page" \
               --screenshot "$GITHUB_WORKSPACE/preview-artifacts/$page.png"
@@ -88,5 +88,4 @@ jobs:
           if-no-files-found: error
           path: |
             preview-artifacts/aeapp-linux-x86_64.tar.gz
-            preview-artifacts/library.png
-            preview-artifacts/downloads.png
+            preview-artifacts/*.png

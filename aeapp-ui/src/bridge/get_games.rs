@@ -8,7 +8,7 @@ use aeapp::{
         launch::LaunchError,
         service_layer::{
             ServiceGame, ServiceGameHub, ServiceGameHubCollection, ServiceGameImagesRequestBuilder,
-            ServiceHeroBackgroundImageRequestBuilder, ServiceLayerClient,
+            ServiceHeroBackgroundImageRequestBuilder, ServiceImageRendition, ServiceLayerClient,
             SERVICE_REQUEST_GAMEIMAGES, SERVICE_REQUEST_GETHEROBACKGROUNDIMAGE,
         },
         LockedAeApp,
@@ -90,7 +90,7 @@ fn get_preferred_bg_hero(heroes: &Option<ServiceGameHubCollection>) -> Option<St
     None
 }
 
-async fn get_preferred_hero_image(images: &Option<ServiceGame>) -> Option<String> {
+fn get_preferred_hero_image(images: &Option<ServiceGame>) -> Option<String> {
     let key_art = match images {
         Some(images) => images.key_art(),
         None => {
@@ -120,6 +120,78 @@ async fn get_preferred_hero_image(images: &Option<ServiceGame>) -> Option<String
     None
 }
 
+fn get_preferred_cover_image(images: &Option<ServiceGame>) -> Option<String> {
+    let game = images.as_ref()?;
+    // The EA library uses square pack art. Landscape key art is a final fallback.
+    let square_path = |art: &ServiceImageRendition| {
+        art.aspect_1x1_image()
+            .as_ref()
+            .filter(|image| !image.path().trim().is_empty())
+            .map(|image| image.path().clone())
+    };
+    game.pack_art()
+        .as_ref()
+        .and_then(square_path)
+        .or_else(|| game.key_art().as_ref().and_then(square_path))
+        .or_else(|| get_preferred_hero_image(images))
+}
+
+#[cfg(test)]
+mod cover_tests {
+    use super::get_preferred_cover_image;
+    use aeapp::core::service_layer::ServiceGame;
+    use serde_json::{json, Value};
+
+    fn game(art: Value) -> Option<ServiceGame> {
+        let mut value = json!({"id": "offline-cover-fixture"});
+        value.as_object_mut().unwrap().extend(art.as_object().unwrap().clone());
+        Some(serde_json::from_value(value).unwrap())
+    }
+
+    #[test]
+    fn square_pack_art_precedes_square_key_art_and_landscape() {
+        let images = game(json!({
+            "packArt": {"aspect1x1Image": {"path": "square-pack"}},
+            "keyArt": {
+                "aspect1x1Image": {"path": "square-key"},
+                "aspect16x9Image": {"path": "landscape"}
+            }
+        }));
+        assert_eq!(
+            get_preferred_cover_image(&images).as_deref(),
+            Some("square-pack")
+        );
+    }
+
+    #[test]
+    fn missing_or_empty_pack_art_uses_square_key_art() {
+        for pack in [Value::Null, json!({"aspect1x1Image": {"path": " "}})] {
+            let images = game(json!({
+                "packArt": pack,
+                "keyArt": {
+                    "aspect1x1Image": {"path": "square-key"},
+                    "aspect16x9Image": {"path": "landscape"}
+                }
+            }));
+            assert_eq!(
+                get_preferred_cover_image(&images).as_deref(),
+                Some("square-key")
+            );
+        }
+    }
+
+    #[test]
+    fn landscape_is_used_only_when_square_art_is_missing() {
+        let images = game(json!({"keyArt": {"aspect16x9Image": {"path": "landscape"}}}));
+        assert_eq!(
+            get_preferred_cover_image(&images).as_deref(),
+            Some("landscape")
+        );
+        assert_eq!(get_preferred_cover_image(&game(json!({}))), None);
+        assert_eq!(get_preferred_cover_image(&None), None);
+    }
+}
+
 fn get_logo_image(images: &Option<ServiceGame>) -> Option<String> {
     let logo_set = match images {
         Some(images) => images.primary_logo(),
@@ -145,13 +217,14 @@ async fn handle_images(
     slug: String,
     locale: String,
     has_hero: bool,
+    has_cover: bool,
     has_logo: bool,
     has_background: bool,
     channel: Sender<UIImageCacheLoaderCommand>,
     service_layer: ServiceLayerClient,
 ) -> Result<(), BackendError> {
     debug!("handling image downloads for {}", &slug);
-    let images_0 = if has_hero && has_logo {
+    let images_0 = if has_hero && has_logo && has_cover {
         None
     } else {
         Some(
@@ -159,7 +232,7 @@ async fn handle_images(
                 SERVICE_REQUEST_GAMEIMAGES,
                 ServiceGameImagesRequestBuilder::default()
                     .should_fetch_context_image(!has_logo)
-                    .should_fetch_backdrop_images(!has_hero)
+                    .should_fetch_backdrop_images(!has_hero || !has_cover)
                     .game_slug(slug.clone())
                     .locale(locale.clone())
                     .build()?,
@@ -187,11 +260,24 @@ async fn handle_images(
     };
 
     if !has_hero {
-        if let Some(hero) = get_preferred_hero_image(&images_0).await {
+        if let Some(hero) = get_preferred_hero_image(&images_0) {
             channel.send(UIImageCacheLoaderCommand::ProvideRemote(
                 crate::ui_image::UIImageType::Hero(slug.clone()),
                 hero,
             ))?
+        }
+    }
+
+    if !has_cover {
+        if let Some(cover) = get_preferred_cover_image(&images_0) {
+            channel.send(UIImageCacheLoaderCommand::ProvideRemote(
+                crate::ui_image::UIImageType::Cover(slug.clone()),
+                cover,
+            ))?;
+        } else {
+            channel.send(UIImageCacheLoaderCommand::Stub(
+                crate::ui_image::UIImageType::Cover(slug.clone()),
+            ))?;
         }
     }
 
@@ -285,12 +371,14 @@ pub async fn get_games_request(
 
         let bg = aeapp_dir()?.join("cache/ui/images/").join(&slug).join("background.jpg");
         let game_hero = aeapp_dir()?.join("cache/ui/images/").join(&slug).join("hero.jpg");
+        let game_cover = aeapp_dir()?.join("cache/ui/images/").join(&slug).join("cover.jpg");
         let game_logo = aeapp_dir()?.join("cache/ui/images/").join(&slug).join("logo.png");
         let has_hero = fs::metadata(&game_hero).is_ok();
+        let has_cover = fs::metadata(&game_cover).is_ok();
         let has_logo = fs::metadata(&game_logo).is_ok();
         let has_background = fs::metadata(&bg).is_ok();
 
-        if !has_hero || !has_logo || !has_background {
+        if !has_hero || !has_cover || !has_logo || !has_background {
             //we're like 20 tasks deep i swear but this shit's gonna be real fast, trust
             let slug_send = slug.clone();
             let locale_send = locale.clone();
@@ -301,6 +389,7 @@ pub async fn get_games_request(
                     slug_send,
                     locale_send,
                     has_hero,
+                    has_cover,
                     has_logo,
                     has_background,
                     channel_send,

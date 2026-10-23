@@ -1,13 +1,13 @@
 use std::sync::mpsc::{self, Receiver, Sender};
 
-use anyhow::{bail, Result};
-use log::info;
 use aeapp::core::{
     auth::{
         context::AuthContext, login::begin_oauth_login_flow, nucleus_token_exchange, TokenResponse,
     },
-    LockedAeApp, AeApp, AeAppOptionsBuilder,
+    AeApp, AeAppOptionsBuilder, LockedAeApp,
 };
+use anyhow::{bail, Result};
+use log::info;
 
 pub struct InteractThreadLoginResponse {
     pub success: bool,

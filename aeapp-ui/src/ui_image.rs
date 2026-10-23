@@ -19,6 +19,7 @@ use image::io::Reader as ImageReader;
 
 #[derive(Clone, PartialEq, Eq, Hash, std::fmt::Debug)]
 pub enum UIImageType {
+    Cover(String),
     Hero(String),
     Logo(String),
     Background(String),
@@ -31,6 +32,7 @@ impl Display for UIImageType {
             f,
             "{}",
             match self {
+                UIImageType::Cover(slug) => format!("`{}`'s square cover", slug),
                 UIImageType::Hero(slug) => format!("`{}`'s hero", slug),
                 UIImageType::Logo(slug) => format!("`{}`'s logo", slug),
                 UIImageType::Background(slug) => format!("`{}`'s background", slug),
@@ -77,7 +79,7 @@ pub enum ImageLoadError {
 }
 
 impl UIImageCache {
-    /// Local textures only: no loader, filesystem lookups, or network requests.
+    /// Local textures and optional user-owned covers; no loader or network requests.
     pub fn preview(ctx: egui::Context) -> Self {
         let (commander, _) = std::sync::mpsc::channel();
         let avatar = ctx.load_texture(
@@ -85,8 +87,50 @@ impl UIImageCache {
             load_image_bytes(include_bytes!("../res/usericon_tmp.png")).unwrap(),
             TextureOptions::LINEAR,
         );
+        let mut cache = HashMap::new();
+        let mut cover_aspects = HashMap::<String, f32>::new();
+        // User-owned artwork is optional and local. Preview never starts the loader.
+        if let Some(directory) = crate::local_asset_directory() {
+            if let Ok(files) = fs::read_dir(directory.join("covers")) {
+                for entry in files.flatten() {
+                    let path = entry.path();
+                    if !path.extension().and_then(|extension| extension.to_str()).is_some_and(
+                        |extension| {
+                            matches!(
+                                extension.to_ascii_lowercase().as_str(),
+                                "png" | "jpg" | "jpeg" | "webp"
+                            )
+                        },
+                    ) {
+                        continue;
+                    }
+                    let Some(slug) = path.file_stem().and_then(|stem| stem.to_str()) else {
+                        continue;
+                    };
+                    if let Some(image) =
+                        fs::read(&path).ok().and_then(|bytes| load_image_bytes(&bytes).ok())
+                    {
+                        // Directory order is unspecified. Prefer square art over a wide fallback.
+                        let distance =
+                            ((image.size[0] as f32 / image.size[1].max(1) as f32).ln()).abs();
+                        if cover_aspects.get(slug).is_some_and(|old| *old <= distance) {
+                            continue;
+                        }
+                        cover_aspects.insert(slug.to_owned(), distance);
+                        cache.insert(
+                            UIImageType::Cover(slug.to_owned()),
+                            Some(ctx.load_texture(
+                                format!("Local preview cover: {slug}"),
+                                image,
+                                TextureOptions::LINEAR,
+                            )),
+                        );
+                    }
+                }
+            }
+        }
         Self {
-            cache: Arc::new(Mutex::new(HashMap::new())),
+            cache: Arc::new(Mutex::new(cache)),
             commander,
             placeholder_avatar: avatar,
         }
@@ -119,6 +163,7 @@ impl UIImageCache {
         // lib should probably create the pfp path but we'll check both just in case we're first
         let avatar_cache_root = aeapp_dir()?.join("cache/avatars");
         match variant {
+            UIImageType::Cover(slug) => Ok(image_cache_root.join(&slug).join("cover.jpg")),
             UIImageType::Hero(slug) => Ok(image_cache_root.join(&slug).join("hero.jpg")),
             UIImageType::Logo(slug) => Ok(image_cache_root.join(&slug).join("logo.png")),
             UIImageType::Background(slug) => {
@@ -155,14 +200,11 @@ impl UIImageCache {
                 }
             }
             if let Some(remote) = remotes.get(&needle) {
-                let result = reqwest::get(remote).await?;
-
-                let mut file = File::create(&path).await?;
-
+                let result = reqwest::get(remote).await?.error_for_status()?;
                 let body = result.bytes().await?;
-                io::copy(&mut body.as_ref(), &mut file).await?;
-
                 let ci = load_image_bytes(&body)?;
+                let mut file = File::create(&path).await?;
+                io::copy(&mut body.as_ref(), &mut file).await?;
                 cache.lock().unwrap().insert(
                     needle,
                     Some(context.load_texture(
@@ -239,6 +281,7 @@ impl UIImageCache {
                             }
                         }
                         remotes.insert(needle, target);
+                        context.request_repaint();
                     }
                     UIImageCacheLoaderCommand::Load(needle) => {
                         // this might cause some slowdown, whoops!

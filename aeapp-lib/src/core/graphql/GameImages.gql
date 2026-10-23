@@ -57,6 +57,10 @@ fragment PrimaryLogo on GameV2 {
 }
 
 fragment PackArt on ImageRendition {
+  aspect1x1Image {
+    path
+    __typename
+  }
   aspect2x1Image {
     path
     __typename

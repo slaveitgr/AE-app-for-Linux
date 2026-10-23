@@ -573,7 +573,9 @@ fn normalize_key(key: &str) -> String {
     }
 }
 
-pub async fn get_aeapp_wine_registry_value(query_key: &str) -> Result<Option<String>, RegistryError> {
+pub async fn get_aeapp_wine_registry_value(
+    query_key: &str,
+) -> Result<Option<String>, RegistryError> {
     let registry_map = parse_aeapp_wine_registry().await?;
     let normalized_query_key = normalize_key(query_key);
 

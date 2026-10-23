@@ -3,7 +3,7 @@ set -euo pipefail
 
 usage() {
     printf '%s\n' 'Usage: install-linux.sh [--from BINARY_DIR] [--assets-dir LOCAL_ASSETS] [--icon LOCAL_PNG]'
-    printf '%s\n' 'Installs for the current user. Existing aeapp account/game data and local fonts are preserved.'
+    printf '%s\n' 'Installs for the current user. Existing aeapp account/game data and local assets are preserved.'
 }
 
 if [[ "$(uname -s)" != Linux ]]; then
@@ -68,8 +68,8 @@ desktop_file="$applications_dir/$app_id.desktop"
 if [[ -z "$assets_dir" && -d "$binary_dir/ea-assets" ]]; then
     assets_dir="$binary_dir/ea-assets"
 fi
-if [[ -n "$assets_dir" && ! -d "$assets_dir" ]]; then
-    printf 'Local assets directory does not exist: %s\n' "$assets_dir" >&2
+if [[ -n "$assets_dir" && ( ! -d "$assets_dir" || -L "$assets_dir" ) ]]; then
+    printf 'Expected a regular local assets directory: %s\n' "$assets_dir" >&2
     exit 1
 fi
 if [[ -z "$icon_source" && -n "$assets_dir" && -f "$assets_dir/icon.png" ]]; then
@@ -81,8 +81,8 @@ elif [[ -z "$icon_source" && -f "$binary_dir/aeapp-icon.png" ]]; then
 elif [[ -z "$icon_source" ]]; then
     icon_source="$repo_dir/aeapp-resources/assets/logo.png"
 fi
-if [[ ! -f "$icon_source" ]]; then
-    printf 'Icon PNG was not found: %s\n' "$icon_source" >&2
+if [[ ! -f "$icon_source" || -L "$icon_source" ]]; then
+    printf 'Expected a regular PNG icon file: %s\n' "$icon_source" >&2
     exit 1
 fi
 header="$(od -An -tu1 -v -N24 "$icon_source")"
@@ -110,11 +110,9 @@ for binary in aeapp aeapp-bootstrap aeapp-cli; do
     temporary_file=''
 done
 if [[ -n "$assets_dir" ]]; then
-    for font in ea-text.otf ea-display.otf; do
-        if [[ -f "$assets_dir/$font" && "$assets_dir/$font" != "$install_dir/ea-assets/$font" ]]; then
-            install -m 644 "$assets_dir/$font" "$install_dir/ea-assets/$font"
-        fi
-    done
+    # This helper is kept next to this installer in both source and packages.
+    source "$script_dir/copy-local-assets.sh"
+    copy_local_assets "$assets_dir" "$install_dir/ea-assets"
 fi
 if [[ "$icon_source" != "$install_dir/ea-assets/icon.png" ]]; then
     install -m 644 "$icon_source" "$install_dir/ea-assets/icon.png"

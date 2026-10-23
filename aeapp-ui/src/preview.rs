@@ -19,9 +19,10 @@ pub fn disconnected_backend() -> BridgeThread {
 
 pub fn games() -> HashMap<String, GameInfo> {
     [
-        ("star-wars-jedi-survivor", "STAR WARS Jedi: Survivor", true),
-        ("titanfall-2", "Titanfall 2", true),
-        ("the-sims-4", "The Sims 4", true),
+        ("need-for-speed-payback", "Need for Speed™ Payback", true),
+        ("star-wars-jedi-survivor", "STAR WARS Jedi: Survivor", false),
+        ("titanfall-2", "Titanfall 2", false),
+        ("the-sims-4", "The Sims 4", false),
         ("need-for-speed-heat", "Need for Speed Heat", false),
         (
             "mass-effect-legendary",

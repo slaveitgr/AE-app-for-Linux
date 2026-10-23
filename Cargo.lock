@@ -63,7 +63,7 @@ dependencies = [
  "futures-lite 1.13.0",
  "once_cell",
  "serde",
- "zbus",
+ "zbus 3.15.2",
 ]
 
 [[package]]
@@ -298,6 +298,211 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "320119579fcad9c21884f5c4861d16174d0e06250625266f50fe6898340abefa"
 
 [[package]]
+name = "aeapp-bootstrap"
+version = "0.1.0"
+dependencies = [
+ "aeapp-lib",
+ "aeapp-resources",
+ "base64 0.21.7",
+ "cacao",
+ "querystring",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.21",
+ "tokio",
+ "url",
+ "urlencoding",
+ "winapi",
+ "windows-service",
+ "winreg 0.50.0",
+]
+
+[[package]]
+name = "aeapp-cli"
+version = "0.1.0"
+dependencies = [
+ "aeapp-lib",
+ "aeapp-resources",
+ "anyhow",
+ "base64 0.21.7",
+ "clap",
+ "futures",
+ "inquire",
+ "is_elevated",
+ "lazy_static",
+ "log",
+ "regex",
+ "serde",
+ "serde_json",
+ "tokio",
+ "winapi",
+ "winreg 0.50.0",
+]
+
+[[package]]
+name = "aeapp-lib"
+version = "1.0.0"
+dependencies = [
+ "aes",
+ "async-compression",
+ "async-recursion",
+ "async-trait",
+ "base62",
+ "base64 0.21.7",
+ "bytebuffer",
+ "bytes",
+ "cbc",
+ "chrono",
+ "crc32fast",
+ "derive-getters",
+ "derive_builder",
+ "directories",
+ "ecb",
+ "enable-ansi-support",
+ "encoding",
+ "filetime",
+ "flate2",
+ "futures",
+ "gethostname 0.5.0",
+ "glob",
+ "hex",
+ "http",
+ "is_elevated",
+ "lazy_static",
+ "log",
+ "mac_address",
+ "md5",
+ "moka",
+ "open",
+ "paste",
+ "pelite",
+ "prost",
+ "prost-build",
+ "querystring",
+ "quick-xml 0.30.0",
+ "rand 0.9.5",
+ "regex",
+ "reqwest",
+ "ring 0.17.14",
+ "rustls 0.20.9",
+ "serde",
+ "serde_json",
+ "sha2-const",
+ "smbios-lib",
+ "strum_macros 0.25.3",
+ "sysinfo",
+ "tar",
+ "thiserror 2.0.21",
+ "tokio",
+ "tokio-rustls 0.23.4",
+ "tokio-util",
+ "toml 0.8.23",
+ "ureq",
+ "url",
+ "uuid",
+ "webpki-roots 0.22.6",
+ "widestring",
+ "winapi",
+ "windows-service",
+ "winreg 0.51.0",
+ "wmi",
+ "xz2",
+ "zstd 0.13.3",
+]
+
+[[package]]
+name = "aeapp-resources"
+version = "0.1.0"
+dependencies = [
+ "winres",
+]
+
+[[package]]
+name = "aeapp-service"
+version = "0.1.0"
+dependencies = [
+ "actix-web",
+ "aeapp-lib",
+ "aeapp-resources",
+ "base64 0.21.7",
+ "derive_more 0.99.20",
+ "directories",
+ "hex",
+ "log",
+ "paste",
+ "regex",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "sha2",
+ "structured-logger",
+ "thiserror 2.0.21",
+ "tokio",
+ "winapi",
+ "windows-service",
+ "winreg 0.50.0",
+]
+
+[[package]]
+name = "aeapp-tui"
+version = "0.1.0"
+dependencies = [
+ "aeapp-lib",
+ "aeapp-resources",
+ "anyhow",
+ "base64 0.21.7",
+ "clap",
+ "color-eyre",
+ "futures",
+ "inquire",
+ "is_elevated",
+ "lazy_static",
+ "log",
+ "ratatui",
+ "regex",
+ "serde",
+ "serde_json",
+ "strum 0.26.3",
+ "tokio",
+ "winapi",
+ "winreg 0.50.0",
+]
+
+[[package]]
+name = "aeapp-ui"
+version = "0.1.0"
+dependencies = [
+ "aeapp-lib",
+ "aeapp-resources",
+ "anyhow",
+ "clap",
+ "eframe",
+ "egui",
+ "egui_demo_lib",
+ "egui_extras",
+ "fuzzy-matcher",
+ "humansize",
+ "image 0.24.9",
+ "is_elevated",
+ "ksni",
+ "log",
+ "puffin",
+ "puffin_http",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "strum 0.25.0",
+ "strum_macros 0.25.3",
+ "sys-locale",
+ "thiserror 2.0.21",
+ "tokio",
+ "winapi",
+ "winit",
+ "x11rb",
+]
+
+[[package]]
 name = "aes"
 version = "0.8.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -496,6 +701,18 @@ checksum = "7c48ccdbf6ca6b121e0f586cbc0e73ae440e56c67c30fa0873b4e110d9c26d2b"
 dependencies = [
  "event-listener 2.5.3",
  "futures-core",
+]
+
+[[package]]
+name = "async-broadcast"
+version = "0.7.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "435a87a52755b8f27fcf321ac4f04b2802e337c8c4872923137471ec39c37532"
+dependencies = [
+ "event-listener 5.4.2",
+ "event-listener-strategy",
+ "futures-core",
+ "pin-project-lite",
 ]
 
 [[package]]
@@ -701,9 +918,9 @@ dependencies = [
  "enumflags2",
  "serde",
  "static_assertions",
- "zbus",
- "zbus_names",
- "zvariant",
+ "zbus 3.15.2",
+ "zbus_names 2.6.1",
+ "zvariant 3.15.2",
 ]
 
 [[package]]
@@ -715,7 +932,7 @@ dependencies = [
  "atspi-common",
  "atspi-proxies",
  "futures-lite 1.13.0",
- "zbus",
+ "zbus 3.15.2",
 ]
 
 [[package]]
@@ -726,7 +943,7 @@ checksum = "6495661273703e7a229356dcbe8c8f38223d697aacfaf0e13590a9ac9977bb52"
 dependencies = [
  "atspi-common",
  "serde",
- "zbus",
+ "zbus 3.15.2",
 ]
 
 [[package]]
@@ -2110,6 +2327,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "endi"
+version = "1.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "66b7e2430c6dff6a955451e2cfc438f09cea1965a9d6f87f7e3b90decc014099"
+
+[[package]]
 name = "enum-map"
 version = "2.7.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3404,6 +3627,19 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e2db585e1d738fc771bf08a151420d3ed193d9d895a36df7f6f8a9456b911ddc"
 
 [[package]]
+name = "ksni"
+version = "0.3.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "814b44c24cd2cb236c3b8a41c7f08237b452a8e76ecaa81f1cec40b5b678215b"
+dependencies = [
+ "futures-util",
+ "pastey",
+ "serde",
+ "tokio",
+ "zbus 5.19.0",
+]
+
+[[package]]
 name = "kurbo"
 version = "0.9.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3610,208 +3846,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "62bb907fe88d54d8d9ce32a3cceab4218ed2f6b7d35617cafe9adf84e43919cb"
 dependencies = [
  "libc",
-]
-
-[[package]]
-name = "aeapp-bootstrap"
-version = "0.1.0"
-dependencies = [
- "base64 0.21.7",
- "cacao",
- "aeapp-lib",
- "aeapp-resources",
- "querystring",
- "reqwest",
- "serde",
- "serde_json",
- "thiserror 2.0.21",
- "tokio",
- "url",
- "urlencoding",
- "winapi",
- "windows-service",
- "winreg 0.50.0",
-]
-
-[[package]]
-name = "aeapp-cli"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "base64 0.21.7",
- "clap",
- "futures",
- "inquire",
- "is_elevated",
- "lazy_static",
- "log",
- "aeapp-lib",
- "aeapp-resources",
- "regex",
- "serde",
- "serde_json",
- "tokio",
- "winapi",
- "winreg 0.50.0",
-]
-
-[[package]]
-name = "aeapp-lib"
-version = "1.0.0"
-dependencies = [
- "aes",
- "async-compression",
- "async-recursion",
- "async-trait",
- "base62",
- "base64 0.21.7",
- "bytebuffer",
- "bytes",
- "cbc",
- "chrono",
- "crc32fast",
- "derive-getters",
- "derive_builder",
- "directories",
- "ecb",
- "enable-ansi-support",
- "encoding",
- "filetime",
- "flate2",
- "futures",
- "gethostname 0.5.0",
- "glob",
- "hex",
- "http",
- "is_elevated",
- "lazy_static",
- "log",
- "mac_address",
- "md5",
- "moka",
- "open",
- "paste",
- "pelite",
- "prost",
- "prost-build",
- "querystring",
- "quick-xml 0.30.0",
- "rand 0.9.5",
- "regex",
- "reqwest",
- "ring 0.17.14",
- "rustls 0.20.9",
- "serde",
- "serde_json",
- "sha2-const",
- "smbios-lib",
- "strum_macros 0.25.3",
- "sysinfo",
- "tar",
- "thiserror 2.0.21",
- "tokio",
- "tokio-rustls 0.23.4",
- "tokio-util",
- "toml 0.8.23",
- "ureq",
- "url",
- "uuid",
- "webpki-roots 0.22.6",
- "widestring",
- "winapi",
- "windows-service",
- "winreg 0.51.0",
- "wmi",
- "xz2",
- "zstd 0.13.3",
-]
-
-[[package]]
-name = "aeapp-resources"
-version = "0.1.0"
-dependencies = [
- "winres",
-]
-
-[[package]]
-name = "aeapp-service"
-version = "0.1.0"
-dependencies = [
- "actix-web",
- "base64 0.21.7",
- "derive_more 0.99.20",
- "directories",
- "hex",
- "log",
- "aeapp-lib",
- "aeapp-resources",
- "paste",
- "regex",
- "reqwest",
- "serde",
- "serde_json",
- "sha2",
- "structured-logger",
- "thiserror 2.0.21",
- "tokio",
- "winapi",
- "windows-service",
- "winreg 0.50.0",
-]
-
-[[package]]
-name = "aeapp-tui"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "base64 0.21.7",
- "clap",
- "color-eyre",
- "futures",
- "inquire",
- "is_elevated",
- "lazy_static",
- "log",
- "aeapp-lib",
- "aeapp-resources",
- "ratatui",
- "regex",
- "serde",
- "serde_json",
- "strum 0.26.3",
- "tokio",
- "winapi",
- "winreg 0.50.0",
-]
-
-[[package]]
-name = "aeapp-ui"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "clap",
- "eframe",
- "egui",
- "egui_demo_lib",
- "egui_extras",
- "fuzzy-matcher",
- "humansize",
- "image 0.24.9",
- "is_elevated",
- "log",
- "aeapp-lib",
- "aeapp-resources",
- "puffin",
- "puffin_http",
- "reqwest",
- "serde",
- "serde_json",
- "strum 0.25.0",
- "strum_macros 0.25.3",
- "sys-locale",
- "thiserror 2.0.21",
- "tokio",
- "winapi",
 ]
 
 [[package]]
@@ -4558,6 +4592,12 @@ name = "paste"
 version = "1.0.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "57c0d7b74b563b49d38dae00a0c37d4d6de9b432382b2892f0574ddcae73fd0a"
+
+[[package]]
+name = "pastey"
+version = "0.2.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2ee67f1008b1ba2321834326597b8e186293b049a023cdef258527550b9935b4"
 
 [[package]]
 name = "pelite"
@@ -6337,6 +6377,7 @@ dependencies = [
  "signal-hook-registry",
  "socket2 0.6.5",
  "tokio-macros",
+ "tracing",
  "windows-sys 0.61.2",
 ]
 
@@ -6745,6 +6786,7 @@ checksum = "4a0e2d11620c50695fe12bbbfde96b3477fe606e7284c22d505c12ce51214514"
 dependencies = [
  "getrandom 0.4.3",
  "js-sys",
+ "serde_core",
  "wasm-bindgen",
 ]
 
@@ -7980,7 +8022,7 @@ version = "3.15.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "675d170b632a6ad49804c8cf2105d7c31eddd3312555cffd4b740e08e97c25e6"
 dependencies = [
- "async-broadcast",
+ "async-broadcast 0.5.1",
  "async-executor",
  "async-fs",
  "async-io 1.13.0",
@@ -8010,9 +8052,39 @@ dependencies = [
  "uds_windows",
  "winapi",
  "xdg-home",
- "zbus_macros",
- "zbus_names",
- "zvariant",
+ "zbus_macros 3.15.2",
+ "zbus_names 2.6.1",
+ "zvariant 3.15.2",
+]
+
+[[package]]
+name = "zbus"
+version = "5.19.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5db4be7c075cb421e4b7ee645541604239bd243ba7c357511f4ff3a74b555907"
+dependencies = [
+ "async-broadcast 0.7.2",
+ "async-recursion",
+ "async-trait",
+ "enumflags2",
+ "event-listener 5.4.2",
+ "futures-core",
+ "futures-lite 2.6.1",
+ "hex",
+ "libc",
+ "ordered-stream",
+ "rustix 1.1.5",
+ "serde",
+ "serde_repr",
+ "tokio",
+ "tracing",
+ "uds_windows",
+ "uuid",
+ "windows-sys 0.61.2",
+ "winnow 1.0.4",
+ "zbus_macros 5.19.0",
+ "zbus_names 4.3.5",
+ "zvariant 5.15.1",
 ]
 
 [[package]]
@@ -8026,7 +8098,22 @@ dependencies = [
  "quote",
  "regex",
  "syn 1.0.109",
- "zvariant_utils",
+ "zvariant_utils 1.0.1",
+]
+
+[[package]]
+name = "zbus_macros"
+version = "5.19.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2990635d09ade6df1868f72f8cac69a876a90981e8bd3c40b1be413f8dc88f40"
+dependencies = [
+ "proc-macro-crate 3.5.0",
+ "proc-macro2",
+ "quote",
+ "syn 3.0.9",
+ "zbus_names 4.3.5",
+ "zvariant 5.15.1",
+ "zvariant_utils 4.2.0",
 ]
 
 [[package]]
@@ -8037,7 +8124,27 @@ checksum = "437d738d3750bed6ca9b8d423ccc7a8eb284f6b1d6d4e225a0e4e6258d864c8d"
 dependencies = [
  "serde",
  "static_assertions",
- "zvariant",
+ "zvariant 3.15.2",
+]
+
+[[package]]
+name = "zbus_names"
+version = "4.3.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "812a12be4ead7a59e18ea8f047d08add0066b73bc62fc1467066a2472ae088dd"
+dependencies = [
+ "serde",
+ "winnow 1.0.4",
+ "zvariant 5.15.1",
+]
+
+[[package]]
+name = "zcheapstr"
+version = "1.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d1afec51604565183aeb5c54c20aeab286120d4e4460f7f76e3e8bb8c0d99473"
+dependencies = [
+ "serde",
 ]
 
 [[package]]
@@ -8192,7 +8299,22 @@ dependencies = [
  "libc",
  "serde",
  "static_assertions",
- "zvariant_derive",
+ "zvariant_derive 3.15.2",
+]
+
+[[package]]
+name = "zvariant"
+version = "5.15.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "80bf6d6cd6a4b601acb64cfb8284cdc643fcfa75ef26ae3c46ec8aa4e8a1fbb7"
+dependencies = [
+ "endi",
+ "enumflags2",
+ "serde",
+ "winnow 1.0.4",
+ "zcheapstr",
+ "zvariant_derive 5.15.1",
+ "zvariant_utils 4.2.0",
 ]
 
 [[package]]
@@ -8205,7 +8327,20 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 1.0.109",
- "zvariant_utils",
+ "zvariant_utils 1.0.1",
+]
+
+[[package]]
+name = "zvariant_derive"
+version = "5.15.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ef2672456ba1cb54b5eaec136e63135b3c7495fb938e53b28a62e633496d486d"
+dependencies = [
+ "proc-macro-crate 3.5.0",
+ "proc-macro2",
+ "quote",
+ "syn 3.0.9",
+ "zvariant_utils 4.2.0",
 ]
 
 [[package]]
@@ -8217,4 +8352,17 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 1.0.109",
+]
+
+[[package]]
+name = "zvariant_utils"
+version = "4.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bad0294361a320b694a328460dc73add56c306150f5cb6bfafc44446120008a3"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "serde",
+ "syn 3.0.9",
+ "winnow 1.0.4",
 ]

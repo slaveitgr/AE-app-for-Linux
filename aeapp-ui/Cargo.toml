@@ -31,6 +31,11 @@ thiserror = "2.0.12"
 [target.'cfg(windows)'.dependencies]
 is_elevated = "0.1.2"
 
+[target.'cfg(target_os = "linux")'.dependencies]
+ksni = "=0.3.6"
+winit = { version = "=0.29.15", default-features = false, features = ["x11", "rwh_06"] }
+x11rb = { version = "=0.13.2", default-features = false }
+
 [build-dependencies]
 aeapp-resources = { path = "../aeapp-resources" }
 

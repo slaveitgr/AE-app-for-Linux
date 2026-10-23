@@ -39,7 +39,7 @@ use aeapp::{
             ServiceLegacyOffer, ServicePlayer, SERVICE_REQUEST_GETBASICPLAYER,
             SERVICE_REQUEST_GETLEGACYCATALOGDEFS,
         },
-        LockedAeApp, AeApp, AeAppEvent, AeAppOptionsBuilder,
+        AeApp, AeAppEvent, AeAppOptionsBuilder, LockedAeApp,
     },
     ooa,
     rtm::client::BasicPresence,
@@ -306,9 +306,7 @@ async fn startup() -> Result<()> {
             do_cloud_sync(aeapp_arc.clone(), &game_slug, write).await
         }
         Mode::AccountInfo => print_account_info(aeapp_arc.clone()).await,
-        Mode::CreateAuthCode { client_id } => {
-            create_auth_code(aeapp_arc.clone(), &client_id).await
-        }
+        Mode::CreateAuthCode { client_id } => create_auth_code(aeapp_arc.clone(), &client_id).await,
         Mode::JunoTokenRefresh => juno_token_refresh(aeapp_arc.clone()).await,
         Mode::ReadLicenseFile { content_id } => read_license_file(&content_id).await,
         Mode::ListFriends => list_friends(aeapp_arc.clone()).await,
@@ -406,17 +404,11 @@ async fn interactive_install_game(aeapp_arc: LockedAeApp) -> Result<()> {
         game.base_offer().offer_id().to_owned()
     };
 
-    let builds = aeapp
+    let build = aeapp
         .content_manager()
         .service()
-        .available_builds(&offer_id)
+        .windows_live_build(&offer_id)
         .await?;
-    let build = builds.live_build();
-    if build.is_none() {
-        bail!("Couldn't find a suitable game build");
-    }
-
-    let build = build.unwrap();
     info!("Installing game build {}", build.to_string());
 
     let path = PathBuf::from(

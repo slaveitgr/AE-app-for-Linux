@@ -1,9 +1,9 @@
 use std::fs::File;
 
 use actix_web::{get, post, web, HttpResponse, Responder};
-use log::info;
 use aeapp::util::registry::set_up_registry;
 use aeapp::util::service::SERVICE_NAME;
+use log::info;
 use std::ffi::OsString;
 use std::path::Path;
 use std::sync::mpsc::{self, Receiver};

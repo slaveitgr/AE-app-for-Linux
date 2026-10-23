@@ -48,6 +48,7 @@ mod preview;
 mod renderers;
 mod shell;
 mod translation_manager;
+mod tray;
 mod ui_image;
 
 const ACCENT_COLOR: Color32 = Color32::from_rgb(39, 106, 252);
@@ -68,8 +69,14 @@ struct Args {
     #[arg(long, value_name = "PNG_PATH")]
     screenshot: Option<PathBuf>,
     /// Initial local preview screen.
-    #[arg(long, default_value = "library", value_parser = ["library", "home", "settings", "game", "proton", "downloads"])]
+    #[arg(long, default_value = "library", value_parser = ["library", "home", "settings", "game", "proton", "downloads", "profile", "browse", "ea-play"])]
     preview_page: String,
+    /// Local screenshot viewport, e.g. 1920x1032 (preview only).
+    #[arg(long)]
+    preview_size: Option<String>,
+    /// Initial settings tab in local preview (0 through 5).
+    #[arg(long, default_value_t = 0, value_parser = clap::value_parser!(u8).range(0..=5))]
+    preview_settings_tab: u8,
     #[arg(short, long)]
     allow_bf3: bool,
 }
@@ -138,7 +145,17 @@ async fn main() {
         };
     }
 
-    let native_options = eframe::NativeOptions {
+    let preview_size = args
+        .preview_size
+        .as_deref()
+        .filter(|_| args.preview)
+        .and_then(|value| value.split_once('x'))
+        .and_then(|(width, height)| Some([width.parse::<f32>().ok()?, height.parse::<f32>().ok()?]))
+        .filter(|size| {
+            size[0] >= 1080.0 && size[0] <= 3840.0 && size[1] >= 700.0 && size[1] <= 2160.0
+        })
+        .unwrap_or([1440.0, 900.0]);
+    let mut native_options = eframe::NativeOptions {
         persist_window: !args.preview,
         persistence_path: if args.preview {
             Some(PathBuf::from("/dev/null"))
@@ -146,13 +163,21 @@ async fn main() {
             None
         },
         viewport: ViewportBuilder::default()
-            .with_inner_size([1440.0, 900.0])
+            .with_inner_size(preview_size)
             .with_min_inner_size([1080.0, 700.0])
             .with_app_id("io.github.slaveitgr.aeapp")
             .with_decorations(false)
             .with_icon(application_icon()),
         ..Default::default()
     };
+    #[cfg(target_os = "linux")]
+    if !args.preview && std::env::var_os("DISPLAY").is_some() {
+        // Winit 0.29 cannot hide a native Wayland window. XWayland preserves tray-close behavior.
+        use winit::platform::x11::EventLoopBuilderExtX11;
+        native_options.event_loop_builder = Some(Box::new(|builder| {
+            builder.with_x11();
+        }));
+    }
     eframe::run_native(
         "aeapp",
         native_options,
@@ -167,6 +192,7 @@ enum PageType {
     Games,
     Home,
     Store,
+    EaPlay,
     Settings,
     Downloads,
     Debug,
@@ -355,6 +381,9 @@ pub struct AeAppEguiApp {
     rendered_frames: u32,
     screenshot_requested: bool,
     screenshot_done: bool,
+    native_tray: Option<tray::NativeTray>,
+    tray_hidden: bool,
+    force_quit: bool,
 }
 
 #[derive(serde::Serialize, serde::Deserialize, PartialEq, EnumIter)]
@@ -436,8 +465,8 @@ impl AeAppEguiApp {
         style.visuals.widgets.active.rounding = Rounding::same(7.0);
         style.visuals.window_rounding = Rounding::same(12.0);
         style.visuals.window_stroke = Stroke::new(1.0, shell::BORDER);
-        style.text_styles.insert(egui::TextStyle::Body, FontId::proportional(15.0));
-        style.text_styles.insert(egui::TextStyle::Button, FontId::proportional(15.0));
+        style.text_styles.insert(egui::TextStyle::Body, FontId::proportional(14.0));
+        style.text_styles.insert(egui::TextStyle::Button, FontId::proportional(14.0));
         style.text_styles.insert(egui::TextStyle::Heading, FontId::proportional(26.0));
 
         let mut fonts = FontDefinitions::default();
@@ -477,6 +506,21 @@ impl AeAppEguiApp {
                 );
             }
         }
+        for (family, filename) in [
+            ("ea_bold", "ea-text-bold.otf"),
+            ("ea_display_bold", "ea-display-bold.otf"),
+        ] {
+            let mut fallback = fonts.families[&FontFamily::Proportional].clone();
+            if let Some(bytes) = local_asset_directory()
+                .and_then(|directory| std::fs::read(directory.join(filename)).ok())
+            {
+                fonts.font_data.insert(family.to_owned(), FontData::from_owned(bytes));
+                fallback.insert(0, family.to_owned());
+            }
+            fonts.families.insert(FontFamily::Name(family.into()), fallback);
+        }
+        style.text_styles.insert(egui::TextStyle::Heading, shell::display(32.0));
+        egui_extras::install_image_loaders(&cc.egui_ctx);
         cc.egui_ctx.set_style(style);
         cc.egui_ctx.set_fonts(fonts);
 
@@ -501,8 +545,20 @@ impl AeAppEguiApp {
             (cache, BridgeThread::new(&cc.egui_ctx, remote))
         };
         let is_preview = args.preview;
+        if is_preview {
+            cc.egui_ctx.data_mut(|data| {
+                data.insert_temp(
+                    egui::Id::new("ea_settings_tab"),
+                    args.preview_settings_tab as usize,
+                )
+            });
+        }
         let debug = args.debug;
         let preview_page = args.preview_page.clone();
+        if is_preview && preview_page == "profile" {
+            cc.egui_ctx
+                .data_mut(|data| data.insert_temp(egui::Id::new("ea-own-profile-summary"), true));
+        }
         if is_preview && preview_page == "proton" {
             settings
                 .game_settings
@@ -529,6 +585,22 @@ impl AeAppEguiApp {
             });
             preview_queue.insert(queued.offer.clone(), queued);
         }
+        let native_tray = tray::NativeTray::start(&cc.egui_ctx, is_preview);
+        #[cfg(target_os = "linux")]
+        if let Some(tray) = native_tray.as_ref() {
+            use winit::raw_window_handle::{HasWindowHandle, RawWindowHandle};
+            if let Ok(handle) = cc.window_handle() {
+                let id = match handle.as_raw() {
+                    RawWindowHandle::Xlib(window) => u32::try_from(window.window).ok(),
+                    RawWindowHandle::Xcb(window) => Some(window.window.get()),
+                    _ => None,
+                };
+                if let Some(id) = id {
+                    tray.set_x11_window(id);
+                }
+            }
+        }
+
         Self {
             args,
             debug,
@@ -562,8 +634,12 @@ impl AeAppEguiApp {
             //game_view_rows: false,
             page_view: if is_preview && preview_page == "settings" {
                 PageType::Settings
-            } else if is_preview && preview_page == "home" {
+            } else if is_preview && matches!(preview_page.as_str(), "home" | "profile") {
                 PageType::Home
+            } else if is_preview && preview_page == "browse" {
+                PageType::Store
+            } else if is_preview && preview_page == "ea-play" {
+                PageType::EaPlay
             } else if preview_downloads {
                 PageType::Downloads
             } else if !is_preview {
@@ -605,6 +681,9 @@ impl AeAppEguiApp {
             rendered_frames: 0,
             screenshot_requested: false,
             screenshot_done: false,
+            native_tray,
+            tray_hidden: false,
+            force_quit: false,
         }
     }
 }
@@ -1107,6 +1186,48 @@ impl eframe::App for AeAppEguiApp {
     }
 
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        while let Some(event) = self.native_tray.as_ref().and_then(tray::NativeTray::try_recv) {
+            match event {
+                tray::TrayEvent::Open
+                | tray::TrayEvent::Settings
+                | tray::TrayEvent::Unavailable => {
+                    if event == tray::TrayEvent::Settings {
+                        self.page_view = PageType::Settings;
+                        self.library_details = false;
+                    }
+                    if event != tray::TrayEvent::Unavailable || self.tray_hidden {
+                        ctx.send_viewport_cmd(egui::ViewportCommand::Visible(true));
+                        ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(false));
+                        ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
+                    }
+                    self.tray_hidden = false;
+                }
+                tray::TrayEvent::Exit => {
+                    self.force_quit = true;
+                    ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+                }
+            }
+        }
+        // A failed worker must never leave a hidden, inaccessible window.
+        if self.tray_hidden
+            && !self.native_tray.as_ref().is_some_and(tray::NativeTray::is_available)
+        {
+            ctx.send_viewport_cmd(egui::ViewportCommand::Visible(true));
+            ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(false));
+            ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
+            self.tray_hidden = false;
+        }
+        if self.tray_hidden {
+            ctx.request_repaint_after(std::time::Duration::from_secs(1));
+        }
+        if ctx.input(|input| input.viewport().close_requested()) && !self.force_quit {
+            if self.native_tray.as_ref().is_some_and(tray::NativeTray::is_available) {
+                ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
+                ctx.send_viewport_cmd(egui::ViewportCommand::Visible(false));
+                self.tray_hidden = true;
+            }
+        }
+
         if !self.args.preview {
             bridge_processor::frontend_processor(self, ctx);
             event_processor::frontend_processor(self, ctx);
@@ -1124,6 +1245,7 @@ impl eframe::App for AeAppEguiApp {
                                 ui.small(err.to_string());
                             }
                             if ui.button("Close client").clicked() {
+                                self.force_quit = true;
                                 ctx.send_viewport_cmd(egui::ViewportCommand::Close);
                             }
                         });

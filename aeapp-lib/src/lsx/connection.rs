@@ -42,9 +42,7 @@ use super::{
     },
 };
 use crate::{
-    core::{
-        auth::storage::TokenError, launch::ActiveGameContext, LockedAeApp, AeApp, AeAppEvent,
-    },
+    core::{auth::storage::TokenError, launch::ActiveGameContext, AeApp, AeAppEvent, LockedAeApp},
     lsx::{request::LSXRequestError, types::LSXRequestType},
     util::{
         native::NativeError,

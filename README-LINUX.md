@@ -19,6 +19,9 @@
 ```sh
 ./aeapp --preview --preview-page library
 ./aeapp --preview --preview-page home
+./aeapp --preview --preview-page browse
+./aeapp --preview --preview-page ea-play
+./aeapp --preview --preview-page profile
 ./aeapp --preview --preview-page downloads
 ./aeapp --preview --preview-page settings
 ./aeapp --preview --preview-page game
@@ -128,7 +131,13 @@ cargo build --locked --release -p aeapp-ui -p aeapp-bootstrap -p aeapp-cli
   --icon /path/to/local/ea-icon.png
 ```
 
-Ο φάκελος assets μπορεί να περιέχει τα `ea-text.otf` και `ea-display.otf`. Το επιλεγμένο εικονίδιο αντιγράφεται χωρίς αλλαγή μεγέθους. Τα εισαγμένα EA assets μένουν τοπικά και εξαιρούνται από το Git· ο δημόσιος κώδικας και το προεπιλεγμένο package περιλαμβάνουν τα fallback assets του aeapp. Ο εγκατεστημένος wrapper ορίζει `AEAPP_INSTALLED=1`, ώστε να χρησιμοποιείται η ορατή συντόμευση εφαρμογής και να διατηρείται η καταχώριση του `qrc:` callback από το native bootstrap. Το script καταχωρίζει επίσης τον κρυφό handler `aeapp-qrc.desktop` για το browser callback. Η εγκατάσταση δεν ανοίγει την εφαρμογή και δεν πραγματοποιεί σύνδεση σε λογαριασμό.
+Ο φάκελος assets μπορεί να περιέχει τις EA Text/Display σε regular και bold, το `icon.png`, στατικά `icons/*.svg` και τοπικά γραφικά στους φακέλους `covers`, `promotions` και `catalog`. Αντιγράφονται μόνο αυτά και τα γνωστά JSON πηγών, χωρίς symlinks, αρχεία λογαριασμού ή cache. Τα υπάρχοντα τοπικά assets διατηρούνται. Το επιλεγμένο εικονίδιο αντιγράφεται χωρίς αλλαγή μεγέθους. Τα εισαγμένα EA assets εξαιρούνται από το Git· ένα νέο προεπιλεγμένο package περιλαμβάνει fallback assets. Ο εγκατεστημένος wrapper ορίζει `AEAPP_INSTALLED=1` και το script καταχωρίζει τον κρυφό handler `aeapp-qrc.desktop` για το browser callback. Η εγκατάσταση δεν ανοίγει την εφαρμογή και δεν πραγματοποιεί σύνδεση σε λογαριασμό.
+
+Για package με τα δικά σου τοπικά assets:
+
+```sh
+./scripts/package-linux.sh /path/to/local/package --assets-dir /path/to/local/ea-assets
+```
 
 ## Έλεγχοι και όρια
 
@@ -141,7 +150,7 @@ cargo test --locked -p aeapp-bootstrap --bin aeapp-bootstrap
 ```
 
 <!-- Final build and visual verification results are updated by the release author. -->
-Local verification on Ubuntu 26.10 x86_64: all three release binaries built with Rust 1.93.0; 29 tests passed and two live-account tests were ignored. Library, Home, Downloads, account settings, and Proton previews were visually checked. User installation, desktop-file validation, visible menu entry, and a real Gio `qrc:` callback round trip to a local fixture passed without an EA account. The installed icon matched the locally supplied original PNG exactly. X11 inspection confirmed the borderless window, title `aeapp`, and WM_CLASS `io.github.slaveitgr.aeapp`. The traced preview made no IPv4/IPv6 calls and launched no helper executable. Screenshots use locally imported EA fonts; the source build uses the bundled fallback. GitHub [Linux build and preview](https://github.com/slaveitgr/AE-app-for-Linux/actions/runs/39941393664) passed for the previous baseline commit `13715b0`; the current changes have separate local verification.
+Local verification on Ubuntu 26.10 x86_64: all three release binaries built with Rust 1.93.0; 41 tests passed and two live-account tests were ignored. Home, Browse, EA Play, profile, Library, Downloads, the five original settings tabs, and Proton previews were visually checked. Native tray registration, X-to-hide with the process still alive, tray-to-restore, Settings dispatch, and Exit were exercised against the desktop tray host with isolated test data. The icon now uses the exact PNG embedded in the supplied Windows EADesktop.exe. User installation, desktop-file validation, visible menu entry, and a real Gio `qrc:` callback round trip to a local fixture passed without an EA account. The installed icon matches the exact Windows MAINICON PNG (`c1c0cac01c74eb7587422e134d84154fd720a5baa0f1828c9647fe435890216f`). X11 inspection confirmed the borderless window, title `aeapp`, and WM_CLASS `io.github.slaveitgr.aeapp`. The traced preview made no IPv4/IPv6 calls and launched no helper executable. Screenshots use locally imported EA fonts; the source build uses the bundled fallback. GitHub [Linux build and preview](https://github.com/slaveitgr/AE-app-for-Linux/actions/runs/39945970498) passed for the latest published baseline commit `d3c8e7a`; the current changes have separate local verification.
 
 Το aeapp παραμένει πειραματικό. Storefront/αγορές, εγκατάσταση DLC και απεγκατάσταση παιχνιδιού από το UI δεν αποτελούν ολοκληρωμένες λειτουργίες αυτής της έκδοσης. Η συμβατότητα διαφέρει ανά παιχνίδι, DRM και anti-cheat. Για τις απαιτήσεις του EA Javelin, δες την [επίσημη τεκμηρίωση EA](https://help.ea.com/en/articles/platforms/pc-ea-anticheat/). Η EA προτείνει έλεγχο της ένδειξης Steam Deck Compatibility στη σελίδα κάθε παιχνιδιού στο Steam: [EA download and play guidance](https://help.ea.com/en/articles/platforms/download-and-play-ea-app-games/).
 
@@ -162,6 +171,20 @@ Local verification on Ubuntu 26.10 x86_64: all three release binaries built with
 python3 scripts/import-ea-fonts.py "/path/to/EA Desktop" "/path/to/AEApp-for-Linux/ea-assets"
 ```
 
-Το native binary φορτώνει προαιρετικά τα `ea-text.otf`, `ea-display.otf` και `icon.png` από τον διπλανό φάκελο `ea-assets`. Το `AEAPP_ASSET_DIR` ορίζει εναλλακτικό φάκελο, ενώ το παλιότερο `AEAPP_FONT_DIR` εξακολουθεί να υποστηρίζεται. Διαφορετικά χρησιμοποιεί τα fallback assets του aeapp. Τα εισαγμένα EA assets μένουν τοπικά και εξαιρούνται από το Git.
+Το script εισάγει `ea-text.otf`, `ea-text-bold.otf`, `ea-display.otf`, `ea-display-bold.otf` και γνωστά στατικά SVG από το διπλανό `assets.rcc`. Το native binary φορτώνει αυτά και προαιρετικό `icon.png` από τον διπλανό φάκελο `ea-assets`. Το `AEAPP_ASSET_DIR` ορίζει εναλλακτικό φάκελο, ενώ το παλιότερο `AEAPP_FONT_DIR` εξακολουθεί να υποστηρίζεται. Διαφορετικά χρησιμοποιεί τα fallback assets του aeapp. Τα εισαγμένα EA assets μένουν τοπικά και εξαιρούνται από το Git.
 
-Η [αναφορά reverse engineering](docs/reverse-engineering.md) καταγράφει τι βρέθηκε στους Windows/Mac clients και τι απομένει για λειτουργική ισοδυναμία. Η έκδοση δεν είναι ακόμη επαληθευμένος 100% κλώνος.
+Ο [δημόσιος κατάλογος της EA](https://store.ea.com/commerce/app/products) μπορεί να εισαχθεί χειροκίνητα για το native Browse:
+
+```sh
+python3 scripts/import-ea-catalog.py /path/to/local/ea-assets/catalog
+```
+
+Αποθηκεύονται έως 30 πραγματικά προϊόντα και 20 επίσημες εικόνες. Οι τιμές κρατούν το νόμισμα της ανώνυμης σελίδας και μπορεί να αλλάζουν ανά περιοχή και χρόνο. Το preview διαβάζει μόνο την τοπική εισαγωγή, χωρίς αυτόματη λήψη. Οι αγορές ανοίγουν την επίσημη εξωτερική ροή της EA. Η εμφάνιση στον κατάλογο δεν δηλώνει ιδιοκτησία, συνδρομητική πρόσβαση ή συμβατότητα Linux.
+
+Η [αναφορά reverse engineering](docs/reverse-engineering.md) καταγράφει τι βρέθηκε στους Windows/Mac clients και στις δημόσιες σελίδες. Δεν ανακτήθηκε το αρχικό desktop SPA· ο δημόσιος κατάλογος είναι διαφορετικό server-rendered frontend. Η έκδοση δεν είναι ακόμη επαληθευμένος 100% κλώνος.
+
+## Εικονίδιο tray
+
+Σε Linux με διαθέσιμο StatusNotifierItem/AppIndicator host, το tray χρησιμοποιεί το εικονίδιο της εγκατάστασης και προσφέρει Open aeapp, Settings και Exit. Το Χ κρύβει το παράθυρο μόνο μετά από επιτυχή εγγραφή στο tray. Αν χαθεί το tray, κρυμμένο παράθυρο επανέρχεται. Χωρίς host το Χ τερματίζει κανονικά. Το preview δεν συνδέεται στο D-Bus και δεν δημιουργεί tray.
+
+Η τρέχουσα υλοποίηση παραθύρου χρησιμοποιεί X11/XWayland όταν υπάρχει `DISPLAY`, επειδή το native Wayland backend της δεν υποστηρίζει απόκρυψη. Το close-to-tray σε καθαρό Wayland χωρίς XWayland δεν έχει επαληθευτεί.

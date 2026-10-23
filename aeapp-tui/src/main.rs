@@ -5,7 +5,7 @@ use inquire::Select;
 use lazy_static::lazy_static;
 use log::{debug, error, info, warn};
 use regex::Regex;
-use service::{BridgeThread, AeAppLibRequest, AeAppLibResponse};
+use service::{AeAppLibRequest, AeAppLibResponse, BridgeThread};
 
 use std::{
     io::stdout,
@@ -34,7 +34,7 @@ use aeapp::{
             ServiceLegacyOffer, ServicePlayer, SERVICE_REQUEST_GETBASICPLAYER,
             SERVICE_REQUEST_GETLEGACYCATALOGDEFS,
         },
-        LockedAeApp, AeAppOptionsBuilder,
+        AeAppOptionsBuilder, LockedAeApp,
     },
     ooa,
     rtm::client::BasicPresence,

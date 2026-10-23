@@ -58,6 +58,8 @@ pub enum ServiceLayerError {
     NoData,
     #[error("Request did not return a response containing the requested field")]
     MissingField,
+    #[error("Windows game download refused: {0}")]
+    GamePlatform(String),
 }
 
 #[derive(Serialize)]
@@ -521,6 +523,12 @@ service_layer_type!(AvailableBuild, {
     game_version: Option<String>,
     build_release_version: Option<String>,
     build_live_date: Option<String>,
+    #[serde(default)]
+    #[builder(default)]
+    software_platform: Option<String>,
+    #[serde(default)]
+    #[builder(default)]
+    base_platform: Option<String>,
 });
 
 impl ServiceAvailableBuild {
@@ -709,6 +717,12 @@ service_layer_type!(LegacyDownloadMetadata, {
 
 service_layer_type!(LegacyOffer, {
     offer_id: String,
+    #[serde(default)]
+    #[builder(default)]
+    software_platform: Option<String>,
+    #[serde(default)]
+    #[builder(default)]
+    base_platform: Option<String>,
     content_id: String,
     primary_master_title_id: String,
     #[serde(rename = "gameLauncherURL")]
