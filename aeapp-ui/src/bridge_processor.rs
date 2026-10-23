@@ -1,10 +1,21 @@
 use crate::{
     bridge_thread::{self, BackendError},
     views::downloads_view::QueuedDownload,
-    AeAppEguiApp, BackendStallState, GameDetails, GameDetailsWrapper,
+    AeAppEguiApp, BackendStallState,
 };
-use log::{error, info, warn};
+use log::{info, warn};
 use std::sync::mpsc::TryRecvError;
+
+fn backend_unavailable(app: &mut AeAppEguiApp, ctx: &egui::Context, reason: &str) {
+    app.installer_state.backend_unavailable(reason);
+    crate::views::downloads_view::backend_unavailable(ctx, reason);
+    if app.tray_hidden {
+        ctx.send_viewport_cmd(egui::ViewportCommand::Visible(true));
+        ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(false));
+        ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
+        app.tray_hidden = false;
+    }
+}
 
 pub fn frontend_processor(app: &mut AeAppEguiApp, ctx: &egui::Context) {
     puffin::profile_function!();
@@ -61,21 +72,8 @@ pub fn frontend_processor(app: &mut AeAppEguiApp, ctx: &egui::Context) {
                         app.games.insert(res.game.slug.clone(), res.game);
                     }
                     GameDetailsResponse(res) => {
-                        let response = res.response;
-
-                        for (slug, game) in &mut app.games {
-                            if !slug.eq(&res.slug) {
-                                continue;
-                            }
-
-                            game.details = GameDetailsWrapper::Available(GameDetails {
-                                time: response.time,
-                                achievements_unlocked: response.achievements_unlocked,
-                                achievements_total: response.achievements_total,
-                                path: response.path.clone(),
-                                system_requirements_min: response.system_requirements_min.clone(),
-                                system_requirements_rec: response.system_requirements_rec.clone(),
-                            });
+                        if let Some(game) = app.games.get_mut(&res.slug) {
+                            game.details = res.response.into();
                         }
                     }
                     FriendInfoResponse(res) => app.friends.push(res.friend),
@@ -83,7 +81,20 @@ pub fn frontend_processor(app: &mut AeAppEguiApp, ctx: &egui::Context) {
                     InstallPreparationResponse(id, path, result) => {
                         app.installer_state.apply_result(id, path, result)
                     }
-                    CriticalError(err) => app.critical_error = Some(*err),
+                    InstallQueuedResponse(id, result) => {
+                        if app.installer_state.apply_enqueue_result(id, result) == Some(true) {
+                            app.modal = None;
+                            app.page_view = crate::PageType::Downloads;
+                            app.library_details = false;
+                        }
+                    }
+                    DownloadControlResult(id, result) => {
+                        crate::views::downloads_view::apply_control_result(ctx, id, result);
+                    }
+                    CriticalError(err) => {
+                        backend_unavailable(app, ctx, &err.to_string());
+                        app.critical_error = Some(*err);
+                    }
                     NonFatalError(err) => app.nonfatal_errors.push(*err),
                     ActiveGameChanged(slug) => app.playing_game = slug,
                     LocateGameResponse(res) => {
@@ -174,6 +185,11 @@ pub fn frontend_processor(app: &mut AeAppEguiApp, ctx: &egui::Context) {
                 match variant {
                     TryRecvError::Empty => {}
                     TryRecvError::Disconnected => {
+                        backend_unavailable(
+                            app,
+                            ctx,
+                            "The download service disconnected. Restart the app before retrying.",
+                        );
                         app.critical_error = Some(BackendError::ChannelDisconnected);
                     }
                 }

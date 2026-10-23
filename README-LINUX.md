@@ -150,7 +150,7 @@ cargo test --locked -p aeapp-bootstrap --bin aeapp-bootstrap
 ```
 
 <!-- Final build and visual verification results are updated by the release author. -->
-Local verification on Ubuntu 26.10 x86_64: all three release binaries built with Rust 1.93.0; 41 tests passed and two live-account tests were ignored. Home, Browse, EA Play, profile, Library, Downloads, the five original settings tabs, and Proton previews were visually checked. Native tray registration, X-to-hide with the process still alive, tray-to-restore, Settings dispatch, and Exit were exercised against the desktop tray host with isolated test data. The icon now uses the exact PNG embedded in the supplied Windows EADesktop.exe. User installation, desktop-file validation, visible menu entry, and a real Gio `qrc:` callback round trip to a local fixture passed without an EA account. The installed icon matches the exact Windows MAINICON PNG (`c1c0cac01c74eb7587422e134d84154fd720a5baa0f1828c9647fe435890216f`). X11 inspection confirmed the borderless window, title `aeapp`, and WM_CLASS `io.github.slaveitgr.aeapp`. The traced preview made no IPv4/IPv6 calls and launched no helper executable. Screenshots use locally imported EA fonts; the source build uses the bundled fallback. GitHub [Linux build and preview](https://github.com/slaveitgr/AE-app-for-Linux/actions/runs/39945970498) passed for the latest published baseline commit `d3c8e7a`; the current changes have separate local verification.
+Local verification on Ubuntu 26.10 x86_64: all three release binaries built with Rust 1.93.0; The previous delivery passed 52 offline tests with two live-account tests ignored; the current milestone has separate verification below. Home, Browse, EA Play, profile, Library, Downloads, the five original settings tabs, and Proton previews were visually checked. Native tray registration, X-to-hide with the process still alive, tray-to-restore, Settings dispatch, and Exit were exercised against the desktop tray host with isolated test data. The icon now uses the exact PNG embedded in the supplied Windows EADesktop.exe. User installation, desktop-file validation, visible menu entry, and a real Gio `qrc:` callback round trip to a local fixture passed without an EA account. The installed icon matches the exact Windows MAINICON PNG (`c1c0cac01c74eb7587422e134d84154fd720a5baa0f1828c9647fe435890216f`). X11 inspection confirmed the borderless window, title `aeapp`, and WM_CLASS `io.github.slaveitgr.aeapp`. The traced preview made no IPv4/IPv6 calls and launched no helper executable. Screenshots use locally imported EA fonts; the source build uses the bundled fallback. GitHub [Linux build and preview](https://github.com/slaveitgr/AE-app-for-Linux/actions/runs/39945970498) passed for the latest published baseline commit `d3c8e7a`; the current changes have separate local verification.
 
 Το aeapp παραμένει πειραματικό. Storefront/αγορές, εγκατάσταση DLC και απεγκατάσταση παιχνιδιού από το UI δεν αποτελούν ολοκληρωμένες λειτουργίες αυτής της έκδοσης. Η συμβατότητα διαφέρει ανά παιχνίδι, DRM και anti-cheat. Για τις απαιτήσεις του EA Javelin, δες την [επίσημη τεκμηρίωση EA](https://help.ea.com/en/articles/platforms/pc-ea-anticheat/). Η EA προτείνει έλεγχο της ένδειξης Steam Deck Compatibility στη σελίδα κάθε παιχνιδιού στο Steam: [EA download and play guidance](https://help.ea.com/en/articles/platforms/download-and-play-ea-app-games/).
 
@@ -185,9 +185,9 @@ python3 scripts/import-ea-catalog.py /path/to/local/ea-assets/catalog
 
 ## Εικονίδιο tray
 
-Σε Linux με διαθέσιμο StatusNotifierItem/AppIndicator host, το tray χρησιμοποιεί το εικονίδιο της εγκατάστασης και προσφέρει Open aeapp, Settings και Exit. Το Χ κρύβει το παράθυρο μόνο μετά από επιτυχή εγγραφή στο tray. Αν χαθεί το tray, κρυμμένο παράθυρο επανέρχεται. Χωρίς host το Χ τερματίζει κανονικά. Το preview δεν συνδέεται στο D-Bus και δεν δημιουργεί tray.
+Σε Linux με διαθέσιμο StatusNotifierItem/AppIndicator host, το tray χρησιμοποιεί το εικονίδιο της εγκατάστασης και προσφέρει Open aeapp, Settings και Exit. Το Χ κρύβει το παράθυρο μόνο μετά από επιτυχή εγγραφή στο tray και εφόσον υπάρχει τρόπος επαναφοράς του. Αν χαθεί το tray, κρυμμένο παράθυρο επανέρχεται. Χωρίς κατάλληλο host το Χ ελαχιστοποιεί το παράθυρο, κρατώντας ενεργή τη διεργασία και τις λήψεις. Το Exit τερματίζει την εφαρμογή· αν εκκρεμεί επιβεβαίωση προσθήκης στην ουρά, εμφανίζεται μήνυμα αναμονής και μπορείς να το επιλέξεις ξανά όταν ολοκληρωθεί. Το preview δεν καταχωρίζει tray.
 
-Η τρέχουσα υλοποίηση παραθύρου χρησιμοποιεί X11/XWayland όταν υπάρχει `DISPLAY`, επειδή το native Wayland backend της δεν υποστηρίζει απόκρυψη. Το close-to-tray σε καθαρό Wayland χωρίς XWayland δεν έχει επαληθευτεί.
+Η τρέχουσα υλοποίηση παραθύρου χρησιμοποιεί X11/XWayland όταν υπάρχει `DISPLAY`, επειδή το native Wayland backend της δεν υποστηρίζει απόκρυψη. Σε καθαρό Wayland χωρίς XWayland χρησιμοποιείται η ελαχιστοποίηση αντί απόκρυψης. Η συμπεριφορά ελαχιστοποίησης εξαρτάται από τον compositor.
 
 ## Game Hub των Windows
 
@@ -208,10 +208,31 @@ The EA Play badge appears below the account name when the existing EA subscripti
 
 ### Παλιός installer DirectX σε Proton
 
-Το managed Wine prefix εφαρμόζει κενό override `mscoree` μόνο στο `DXSETUP.exe`, ώστε ο παλιός έλεγχος Managed DirectX/.NET να μη σταματά την εγκατάσταση των native βιβλιοθηκών. Παραμένουν οι κανονικές παράμετροι του manifest, το DirectX, οι bundled Visual C++ installers, η εγγραφή του παιχνιδιού και ο έλεγχος exit code. Δεν προστίθεται global DLL override. Σε απομονωμένο prefix με GE-Proton11-11 αναπαράχθηκε το DXSETUP `-9` του Payback και μετά τη διόρθωση ολοκληρώθηκαν DirectX, όλα τα bundled VC redistributables και Touchup με exit 0. Η εκκίνηση του παιχνιδιού/DRM δεν έχει ακόμη επαληθευτεί.
+Το managed Wine prefix εφαρμόζει κενό override `mscoree` μόνο στο `DXSETUP.exe`, ώστε ο παλιός έλεγχος Managed DirectX/.NET να μη σταματά την εγκατάσταση των native βιβλιοθηκών. Παραμένουν οι κανονικές παράμετροι του manifest, το DirectX, οι bundled Visual C++ installers, η εγγραφή του παιχνιδιού και ο έλεγχος exit code. Δεν προστίθεται global DLL override. Σε απομονωμένο prefix με GE-Proton11-11 αναπαράχθηκε το DXSETUP `-9` του Payback και μετά τη διόρθωση ολοκληρώθηκαν DirectX, όλα τα bundled VC redistributables και Touchup με exit 0. Η μετέπειτα native εκκίνηση επαληθεύτηκε για το Payback, όπως καταγράφεται παρακάτω.
 
 ### Native εκκίνηση Payback
 
 Η προετοιμασία του prefix προσθέτει και το 32-bit `HKLM\Software\Wow6432Node\Origin\ClientPath`, από όπου το Origin SDK εντοπίζει τον launcher. Τα runtime license requests εντοπίζουν την έκδοση του Activation DLL και χρησιμοποιούν την ίδια ταυτότητα hardware με την αρχική άδεια. Υποστηρίζονται τα αιτήματα LSX `LANGUAGE` και `FULLGAME_PURCHASED`. Η πλήρης πρόσβαση προκύπτει από ενεργό δικαίωμα χωρίς trial, συμπεριλαμβανομένου του EA Play/Game Pass.
 
 Στις 23/10/2026 ο χρήστης επιβεβαίωσε ότι το Need for Speed Payback έπαιξε κανονικά μέσω native backend, managed GE-Proton11-11 και ενεργού EA Play/Game Pass. Ο έλεγχος αφορά τη συγκεκριμένη εγκατάσταση και τον δοκιμασμένο υπολογιστή. Χρησιμοποιείται ένας native backend στην κανονική θύρα LSX 3216: η δεύτερη σύνδεση SDK του Payback δεν ακολουθεί τη διαγνωστική παράκαμψη θύρας.
+
+
+## Πρώτη ενότητα UI μετά την ανάλυση Windows
+
+Η αναζήτηση στη Library φιλτράρει τα owned games, ενώ Home/Browse/EA Play χρησιμοποιούν ξεχωριστή αναζήτηση δημόσιου καταλόγου στο Browse. Το αντίστοιχο πεδίο δηλώνει το εύρος αναζήτησης. Τα μη διαθέσιμα φίλτρα και οι ενέργειες του λογαριασμού παραμένουν απενεργοποιημένα.
+
+Το View add-ons ανοίγει την καρτέλα Add-ons του συγκεκριμένου παιχνιδιού. Οι συνήθεις σύνδεσμοι παιχνιδιού ανοίγουν το Overview. Άγνωστος χρόνος παιχνιδιού και achievements εμφανίζονται ως μη διαθέσιμα, διακριτά από επιβεβαιωμένο μηδέν. Η υπάρχουσα υπηρεσία game details παρέχει Windows system requirements, όχι account statistics. Loading, αποτυχία και Retry έχουν ξεχωριστές καταστάσεις.
+
+Το Next στο Download options περιμένει απάντηση από το backend για την προσθήκη στην ουρά. Σφάλμα πριν από την αποθήκευση επιτρέπει Retry, ενώ ήδη υπάρχουσα εγγραφή ανοίγει με Open στα Downloads. Αλλαγή παιχνιδιού ή φακέλου ακυρώνει παλιό αποτέλεσμα ελέγχου χώρου. Οι εντολές Pause/Resume/Retry/Cancel περιμένουν τη δική τους επιβεβαίωση, χωρίς αισιόδοξη αλλαγή της κατάστασης. Η αρχική ανάγνωση download URL και archive metadata έχει όριο 60 δευτερολέπτων· δεν εφαρμόζεται στο ίδιο το download.
+
+Πρόσθετα τοπικά fixtures, χωρίς backend ή δικαιώματα λογαριασμού:
+
+```sh
+./aeapp --preview --preview-page game --preview-details-state failed
+./aeapp --preview --preview-page install --preview-install-state enqueuing
+./aeapp --preview --preview-page install --preview-install-state enqueue-error
+./aeapp --preview --preview-page downloads --preview-download-state unknown-size
+./aeapp --preview --preview-page downloads --preview-download-state finalizing
+```
+
+Τοπικός έλεγχος 23/10/2026 για αυτή την ενότητα: 76 offline tests πέρασαν (39 library, 35 UI, 2 browser callback), με δύο live-account tests εξαιρούμενα. Τα release binaries UI/bootstrap/CLI χτίστηκαν επιτυχώς. Οι νέες καταστάσεις ελέγχθηκαν με απομονωμένα local previews σε 1920×1080 και 1080×700. Τα screenshots fixtures δεν δέχονται pointer input, ώστε tooltips και hover να μην εξαρτώνται από τη θέση του ποντικιού. Η πρόσφατη αλλαγή fallback tray/Wayland καλύπτεται από offline tests· δεν επαναλήφθηκε χειρισμός του πραγματικού desktop σε αυτή την ενότητα. Δεν εκκινήθηκε ξανά παιχνίδι ή πραγματικό download.

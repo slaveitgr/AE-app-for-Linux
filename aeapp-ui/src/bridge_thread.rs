@@ -61,7 +61,7 @@ pub struct InteractThreadFriendListResponse {
 
 pub struct InteractThreadGameDetailsResponse {
     pub slug: String,
-    pub response: GameDetails,
+    pub response: Result<GameDetails, String>,
 }
 
 pub struct InteractThreadLocateGameFailure {
@@ -92,7 +92,8 @@ pub enum AeAppLibRequest {
     OpenGameFolderRequest(String),
     RefreshGamesRequest,
     ControlDownload(DownloadAction),
-    InstallGameRequest(String, PathBuf),
+    ControlDownloadTracked(u64, DownloadAction),
+    InstallGameRequest(u64, String, PathBuf),
     LocateGameRequest(String),
     ShutdownRequest,
 }
@@ -111,6 +112,8 @@ pub enum AeAppLibResponse {
         PathBuf,
         Result<aeapp::content::install::InstallSpace, String>,
     ),
+    InstallQueuedResponse(u64, Result<(), String>),
+    DownloadControlResult(u64, Result<(), String>),
     GameDetailsResponse(InteractThreadGameDetailsResponse),
     LocateGameResponse(InteractThreadLocateGameResponse),
     // Alerts, rather than responses:
@@ -175,6 +178,8 @@ pub enum BackendError {
 
     #[error("backend-frontend communication channel disconnected")]
     ChannelDisconnected,
+    #[error("The background worker stopped unexpectedly. Restart the app to reconnect.")]
+    WorkerStopped,
     #[error("tried to perform an action that requires being logged in, but was logged out")]
     LoggedOut,
     #[error("no downloadable live build is available for {0}")]
@@ -212,10 +217,9 @@ impl BridgeThread {
         let (rtm_responder, rtm_listener) = std::sync::mpsc::channel();
         let context = ctx.clone();
 
-        tokio::task::spawn(async move {
-            let die_fallback_transmitter = backend_responder.clone();
-            //panic::set_hook(Box::new( |_| {}));
-            let result = BridgeThread::run(
+        let die_fallback_transmitter = backend_responder.clone();
+        let worker = tokio::task::spawn(async move {
+            BridgeThread::run(
                 backend_cmd_listener,
                 backend_responder,
                 rtm_cmd_listener,
@@ -223,15 +227,13 @@ impl BridgeThread {
                 remote_provider_channel,
                 &context,
             )
-            .await;
-            if let Err(err) = result {
-                die_fallback_transmitter
-                    .send(AeAppLibResponse::CriticalError(Box::from(err)))
-                    .unwrap();
-            } else {
-                info!("Interact thread shut down")
-            }
+            .await
         });
+        tokio::spawn(publish_worker_outcome(
+            worker,
+            die_fallback_transmitter,
+            ctx.clone(),
+        ));
 
         Self {
             backend_listener,
@@ -493,19 +495,13 @@ impl BridgeThread {
                     let channel = backend_responder.clone();
                     let context = ctx.clone();
                     tokio::spawn(async move {
-                        let service = aeapp::content::ContentService::new(auth);
-                        let result = tokio::time::timeout(
-                            Duration::from_secs(60),
-                            aeapp::content::install::prepare_install(
-                                &service,
-                                &offer,
-                                path.clone(),
-                            ),
-                        )
-                        .await
-                        .unwrap_or_else(|_| {
-                            Err("Disk-space calculation timed out. Try again.".into())
+                        let request_path = path.clone();
+                        let request = tokio::spawn(async move {
+                            let service = aeapp::content::ContentService::new(auth);
+                            aeapp::content::install::prepare_install(&service, &offer, request_path)
+                                .await
                         });
+                        let result = supervise_install_preparation(request).await;
                         let _ = channel.send(AeAppLibResponse::InstallPreparationResponse(
                             id, path, result,
                         ));
@@ -517,7 +513,30 @@ impl BridgeThread {
                     let channel = backend_responder.clone();
                     let aeapp = aeapp_arc.clone();
                     let context = ctx.clone();
-                    async move { game_details_request(aeapp, slug.clone(), channel, &context).await }.await
+                    tokio::spawn(async move {
+                        let request_slug = slug.clone();
+                        let mut request =
+                            tokio::spawn(
+                                async move { game_details_request(aeapp, request_slug).await },
+                            );
+                        let response =
+                            match tokio::time::timeout(Duration::from_secs(30), &mut request).await
+                            {
+                                Ok(Ok(result)) => result.map_err(|error| error.to_string()),
+                                Ok(Err(_)) => {
+                                    Err("The game-details request stopped. Try again.".into())
+                                }
+                                Err(_) => {
+                                    request.abort();
+                                    Err("Loading game details timed out. Try again.".into())
+                                }
+                            };
+                        let _ = channel.send(AeAppLibResponse::GameDetailsResponse(
+                            InteractThreadGameDetailsResponse { slug, response },
+                        ));
+                        context.request_repaint();
+                    });
+                    Ok(())
                 }
                 AeAppLibRequest::LocateGameRequest(path) => {
                     #[cfg(unix)]
@@ -566,13 +585,16 @@ impl BridgeThread {
                     ctx.request_repaint();
                     Ok(())
                 }
-                AeAppLibRequest::InstallGameRequest(offer, path) => {
+                AeAppLibRequest::InstallGameRequest(id, offer, path) => {
                     let app = aeapp_arc.clone();
+                    let request_app = app.clone();
                     let channel = backend_responder.clone();
                     let context = ctx.clone();
                     tokio::spawn(async move {
-                        let result = async {
-                            let auth = app.lock().await.auth_storage().clone();
+                        // Publish acceptance only after add_install has persisted the queue.
+                        // Join failures must also release the frontend's pending request.
+                        let job = tokio::spawn(async move {
+                            let auth = request_app.lock().await.auth_storage().clone();
                             let service = aeapp::content::ContentService::new(auth);
                             let space = tokio::time::timeout(
                                 Duration::from_secs(60),
@@ -589,13 +611,18 @@ impl BridgeThread {
                                 )
                             })?
                             .map_err(BackendError::InstallPreparation)?;
+                            if space.required == 0 || space.build_id.trim().is_empty() {
+                                return Err(BackendError::InstallPreparation(
+                                    "The download size or Windows build is unavailable. Check the download options again.".into(),
+                                ));
+                            }
                             if space.available < space.required {
                                 return Err(BackendError::InstallPreparation(
                                     "There is not enough disk space in the selected game folder."
                                         .into(),
                                 ));
                             }
-                            let mut aeapp = app.lock().await;
+                            let mut aeapp = request_app.lock().await;
                             let game = QueuedGameBuilder::default()
                                 .offer_id(offer)
                                 .build_id(space.build_id)
@@ -603,13 +630,14 @@ impl BridgeThread {
                                 .build()?;
                             aeapp.content_manager().add_install(game).await?;
                             Ok::<(), BackendError>(())
-                        }
-                        .await;
+                        });
+                        let result = match job.await {
+                            Ok(result) => result.map_err(|error| error.to_string()),
+                            Err(_) => Err("The download request stopped before it could be confirmed. Check the download queue before retrying.".into()),
+                        };
                         let mut aeapp = app.lock().await;
                         Self::update_queue(aeapp.content_manager(), channel.clone());
-                        if let Err(error) = result {
-                            let _ = channel.send(AeAppLibResponse::NonFatalError(Box::new(error)));
-                        }
+                        let _ = channel.send(AeAppLibResponse::InstallQueuedResponse(id, result));
                         context.request_repaint();
                     });
                     Ok(())
@@ -624,6 +652,19 @@ impl BridgeThread {
                     Self::update_queue(aeapp.content_manager(), backend_responder.clone());
                     ctx.request_repaint();
                     result
+                }
+                AeAppLibRequest::ControlDownloadTracked(id, action) => {
+                    let mut aeapp = aeapp_arc.lock().await;
+                    let result = aeapp
+                        .content_manager()
+                        .control_download(action)
+                        .await
+                        .map_err(|error| error.to_string());
+                    Self::update_queue(aeapp.content_manager(), backend_responder.clone());
+                    let _ =
+                        backend_responder.send(AeAppLibResponse::DownloadControlResult(id, result));
+                    ctx.request_repaint();
+                    Ok(())
                 }
                 AeAppLibRequest::StopGameRequest(offer) => {
                     aeapp::core::launch::stop_game(aeapp_arc.clone(), &offer)
@@ -664,5 +705,63 @@ impl BridgeThread {
 
             puffin::GlobalProfiler::lock().new_frame();
         }
+    }
+}
+
+/// Preflight is read-only: it can be cancelled on timeout without abandoning a transfer.
+async fn supervise_install_preparation(
+    mut request: tokio::task::JoinHandle<Result<aeapp::content::install::InstallSpace, String>>,
+) -> Result<aeapp::content::install::InstallSpace, String> {
+    match tokio::time::timeout(Duration::from_secs(60), &mut request).await {
+        Ok(Ok(result)) => result,
+        Ok(Err(_)) => Err("The disk-space check stopped. Try again.".into()),
+        Err(_) => {
+            request.abort();
+            Err("Disk-space calculation timed out. Try again.".into())
+        }
+    }
+}
+
+/// A panicking worker must publish a terminal error even when detached child tasks
+/// still own response senders and prevent the UI receiver from disconnecting.
+async fn publish_worker_outcome(
+    worker: tokio::task::JoinHandle<Result<(), BackendError>>,
+    channel: Sender<AeAppLibResponse>,
+    ctx: Context,
+) {
+    let failure = match worker.await {
+        Ok(Ok(())) => None,
+        Ok(Err(error)) => Some(error),
+        Err(_) => Some(BackendError::WorkerStopped),
+    };
+    if let Some(error) = failure {
+        let _ = channel.send(AeAppLibResponse::CriticalError(Box::new(error)));
+    } else {
+        info!("Interact thread shut down");
+    }
+    ctx.request_repaint();
+}
+
+#[cfg(test)]
+mod worker_tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn preflight_panic_becomes_an_error_instead_of_an_endless_spinner() {
+        let request = tokio::spawn(async { panic!("isolated preflight failure fixture") });
+        let result = supervise_install_preparation(request).await;
+        assert!(matches!(result, Err(message) if message.contains("check stopped")));
+    }
+
+    #[tokio::test]
+    async fn worker_panic_is_reported_even_with_another_live_sender() {
+        let (sender, receiver) = std::sync::mpsc::channel();
+        let _detached_sender = sender.clone();
+        let worker = tokio::spawn(async { panic!("isolated worker failure fixture") });
+        publish_worker_outcome(worker, sender, Context::default()).await;
+        assert!(
+            matches!(receiver.try_recv(), Ok(AeAppLibResponse::CriticalError(error))
+            if matches!(*error, BackendError::WorkerStopped))
+        );
     }
 }

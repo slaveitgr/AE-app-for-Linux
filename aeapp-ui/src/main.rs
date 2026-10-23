@@ -83,8 +83,14 @@ struct Args {
     #[arg(long, default_value_t = 0, value_parser = clap::value_parser!(u8).range(0..=2))]
     preview_game_tab: u8,
     /// Download options preview state (local fixtures only).
-    #[arg(long, default_value = "ready", value_parser = ["ready", "calculating", "insufficient", "error"])]
+    #[arg(long, default_value = "ready", value_parser = ["ready", "calculating", "insufficient", "error", "enqueuing", "enqueue-error"])]
     preview_install_state: String,
+    /// Game Hub details preview state (local fixtures only).
+    #[arg(long, default_value = "ready", value_parser = ["ready", "loading", "failed"])]
+    preview_details_state: String,
+    /// Active download preview state (local fixtures only).
+    #[arg(long, default_value = "downloading", value_parser = ["downloading", "unknown-size", "paused", "failed", "finalizing"])]
+    preview_download_state: String,
     /// Show a local sample transfer in the sidebar on any preview page.
     #[arg(long)]
     preview_active_download: bool,
@@ -231,12 +237,12 @@ pub struct GameInstalledModsInfo {}
 
 #[derive(PartialEq, Clone)]
 pub struct GameDetails {
-    /// Time (in hours/10) you have logged in the game
-    time: u32, // hours/10 allows for better precision, i'm only using one decimal place
-    /// Achievements you have unlocked
-    achievements_unlocked: u16,
-    /// Total achievements in the game
-    achievements_total: u16,
+    /// Playtime in tenths of an hour. None means no verified statistic was supplied.
+    time: Option<u32>,
+    /// None is unavailable; Some(0) is a verified zero.
+    achievements_unlocked: Option<u16>,
+    /// None is unavailable; Some(0) means the game has no achievements.
+    achievements_total: Option<u16>,
     /// Path the game is installed to
     path: String,
     /// Minimum specs to run the game, in EasyMark spec
@@ -250,6 +256,16 @@ pub enum GameDetailsWrapper {
     Unloaded,
     Loading,
     Available(GameDetails),
+    Failed(String),
+}
+
+impl From<Result<GameDetails, String>> for GameDetailsWrapper {
+    fn from(result: Result<GameDetails, String>) -> Self {
+        match result {
+            Ok(details) => Self::Available(details),
+            Err(message) => Self::Failed(message),
+        }
+    }
 }
 
 #[derive(Clone, serde::Serialize, serde::Deserialize)]
@@ -568,12 +584,10 @@ impl AeAppEguiApp {
         }
         let preview_downloads =
             is_preview && (preview_page == "downloads" || args.preview_active_download);
+        let preview_current = preview_downloads
+            .then(|| preview::seed_download(&cc.egui_ctx, &args.preview_download_state));
         let mut preview_queue = HashMap::new();
         if preview_downloads {
-            views::downloads_view::seed_preview_status(
-                &cc.egui_ctx,
-                "preview:need-for-speed-heat".to_owned(),
-            );
             let queued = QueuedDownload {
                 slug: "mass-effect-legendary".to_owned(),
                 offer: "preview:mass-effect-legendary".to_owned(),
@@ -609,6 +623,11 @@ impl AeAppEguiApp {
             installer_state = InstallModalState::for_game(&settings, "star-wars-jedi-survivor");
             installer_state.seed_preview(&args.preview_install_state);
         }
+        let games = if is_preview {
+            preview::games(&args.preview_details_state)
+        } else {
+            HashMap::new()
+        };
         Self {
             args,
             debug,
@@ -631,11 +650,7 @@ impl AeAppEguiApp {
             } else {
                 membership::Membership::Unknown
             },
-            games: if is_preview {
-                preview::games()
-            } else {
-                HashMap::new()
-            },
+            games,
             game_sel: if is_preview
                 && matches!(preview_page.as_str(), "game" | "proton" | "install")
             {
@@ -686,12 +701,7 @@ impl AeAppEguiApp {
                 BackendStallState::Starting
             },
             playing_game: None,
-            installing_now: preview_downloads.then(|| QueuedDownload {
-                slug: "need-for-speed-heat".to_owned(),
-                offer: "preview:need-for-speed-heat".to_owned(),
-                downloaded_bytes: 512_000_000,
-                total_bytes: 2_048_000_000,
-            }),
+            installing_now: preview_current,
             install_queue: preview_queue,
             installer_state,
             settings,
@@ -1094,6 +1104,22 @@ impl AeAppEguiApp {
 }
 
 impl eframe::App for AeAppEguiApp {
+    fn raw_input_hook(&mut self, _ctx: &egui::Context, input: &mut egui::RawInput) {
+        if self.args.preview && self.args.screenshot.is_some() {
+            // Frozen fixture screenshots must not depend on the desktop cursor.
+            input.events.retain(|event| {
+                !matches!(
+                    event,
+                    egui::Event::PointerMoved(_)
+                        | egui::Event::PointerButton { .. }
+                        | egui::Event::PointerGone
+                        | egui::Event::Touch { .. }
+                )
+            });
+            input.events.push(egui::Event::PointerGone);
+        }
+    }
+
     fn persist_egui_memory(&self) -> bool {
         !self.is_preview()
     }
@@ -1139,11 +1165,30 @@ impl eframe::App for AeAppEguiApp {
         if self.tray_hidden {
             ctx.request_repaint_after(std::time::Duration::from_secs(1));
         }
-        if ctx.input(|input| input.viewport().close_requested()) && !self.force_quit {
+        let close_requested = ctx.input(|input| input.viewport().close_requested());
+        if close_requested
+            && self.force_quit
+            && self.installer_state.is_enqueuing()
+            && self.critical_error.is_none()
+            && !self.args.preview
+        {
+            // A sent request is not yet a durable queue entry. Keep the worker alive
+            // until its terminal acknowledgment rather than silently losing that job.
+            ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
+            self.force_quit = false;
+            self.nonfatal_errors.push(BackendError::InstallPreparation(
+                "The game is still being added to the download queue. Wait for this request to finish before choosing Exit.".into(),
+            ));
+        } else if close_requested && !self.force_quit && !self.args.preview {
+            // X keeps downloads running. Without a registered, restorable tray,
+            // leave a taskbar entry so the existing window remains recoverable.
+            ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
             if self.native_tray.as_ref().is_some_and(tray::NativeTray::is_available) {
-                ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
                 ctx.send_viewport_cmd(egui::ViewportCommand::Visible(false));
                 self.tray_hidden = true;
+            } else {
+                ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(true));
+                self.tray_hidden = false;
             }
         }
 

@@ -1,8 +1,8 @@
 use crate::{
-    bridge_thread::AeAppLibRequest, set_app_modal, shell, AeAppEguiApp, GameDetailsWrapper,
-    GameInfo, PopupModal, ACCENT_COLOR,
+    bridge_thread::AeAppLibRequest, set_app_modal, shell, AeAppEguiApp, GameInfo, PopupModal,
+    ACCENT_COLOR,
 };
-use egui::{pos2, vec2, Align2, Color32, FontId, Rect, RichText, Sense, Stroke, Ui};
+use egui::{pos2, vec2, Align2, Color32, FontId, Rect, Sense, Stroke, Ui};
 use strum_macros::EnumIter;
 
 #[derive(Debug, PartialEq, Default, EnumIter)]
@@ -302,9 +302,13 @@ pub(crate) fn cover_artwork(app: &AeAppEguiApp, ui: &Ui, rect: Rect, game: &Game
     );
 }
 
-fn open_details(app: &mut AeAppEguiApp, game: &GameInfo) {
-    app.game_sel = game.slug.clone();
-    app.library_details = true;
+fn open_details(app: &mut AeAppEguiApp, ctx: &egui::Context, game: &GameInfo) {
+    super::game_hub_view::open_tab(
+        app,
+        ctx,
+        &game.slug,
+        super::game_hub_view::GameHubTab::Overview,
+    );
 }
 pub(crate) fn primary_game_action(app: &mut AeAppEguiApp, game: &GameInfo) {
     if app.is_preview() {
@@ -334,7 +338,7 @@ pub(crate) fn primary_game_action(app: &mut AeAppEguiApp, game: &GameInfo) {
 pub(crate) fn game_menu(app: &mut AeAppEguiApp, ui: &mut Ui, game: &GameInfo) {
     ui.set_min_width(220.0);
     if ui.button("View game details").clicked() {
-        open_details(app, game);
+        open_details(app, ui.ctx(), game);
         ui.close_menu();
     }
     ui.separator();
@@ -388,10 +392,12 @@ pub(crate) fn game_menu(app: &mut AeAppEguiApp, ui: &mut Ui, game: &GameInfo) {
         ui.close_menu();
     }
     if !game.dlc.is_empty() && ui.button("View add-ons").clicked() {
-        ui.ctx().data_mut(|data| {
-            data.insert_temp(egui::Id::new(("aeapp-game-hub-tab", &game.slug)), 2usize)
-        });
-        open_details(app, game);
+        super::game_hub_view::open_tab(
+            app,
+            ui.ctx(),
+            &game.slug,
+            super::game_hub_view::GameHubTab::Addons,
+        );
         ui.close_menu();
     }
 }
@@ -427,7 +433,7 @@ fn card(app: &mut AeAppEguiApp, ui: &mut Ui, game: &GameInfo, rect: Rect, sectio
         )
         .clicked()
     {
-        open_details(app, game);
+        open_details(app, ui.ctx(), game);
     }
     if !game.dlc.is_empty() {
         let addons = Rect::from_min_size(
@@ -447,7 +453,12 @@ fn card(app: &mut AeAppEguiApp, ui: &mut Ui, game: &GameInfo, rect: Rect, sectio
             ACCENT_COLOR,
         );
         if response.clicked() {
-            open_details(app, game);
+            super::game_hub_view::open_tab(
+                app,
+                ui.ctx(),
+                &game.slug,
+                super::game_hub_view::GameHubTab::Addons,
+            );
         }
         response.on_hover_cursor(egui::CursorIcon::PointingHand);
     }
@@ -478,7 +489,7 @@ fn card(app: &mut AeAppEguiApp, ui: &mut Ui, game: &GameInfo, rect: Rect, sectio
         |ui| game_menu(app, ui, game),
     );
     if response.clicked() && !menu_response.hovered() {
-        open_details(app, game);
+        open_details(app, ui.ctx(), game);
     }
 }
 fn game_grid(

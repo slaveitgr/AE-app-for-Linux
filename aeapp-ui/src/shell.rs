@@ -3,8 +3,7 @@ use crate::{
     AeAppEguiApp, BackendStallState, PageType, ACCENT_COLOR,
 };
 use egui::{
-    pos2, vec2, Align, Align2, Color32, FontId, Layout, Margin, Rect, RichText, Rounding, Stroke,
-    Ui,
+    pos2, vec2, Align, Align2, Color32, FontId, Layout, Margin, Rect, RichText, Stroke, Ui,
 };
 
 pub const BACKGROUND: Color32 = Color32::from_rgb(30, 30, 48);
@@ -86,6 +85,52 @@ fn change_history(app: &mut AeAppEguiApp, ctx: &egui::Context, forward: bool) {
 }
 fn profile_key() -> egui::Id {
     egui::Id::new("ea-own-profile-summary")
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum SearchScope {
+    Library,
+    Catalog,
+}
+impl SearchScope {
+    fn for_page(page: &PageType) -> Self {
+        if *page == PageType::Games {
+            Self::Library
+        } else {
+            Self::Catalog
+        }
+    }
+    fn hint(self) -> &'static str {
+        match self {
+            Self::Library => "Search your library",
+            Self::Catalog => "Search catalog games",
+        }
+    }
+}
+
+fn catalog_search_key() -> egui::Id {
+    egui::Id::new("ea-catalog-search-query")
+}
+pub(crate) fn catalog_search(ctx: &egui::Context) -> String {
+    ctx.data(|data| data.get_temp::<String>(catalog_search_key())).unwrap_or_default()
+}
+
+fn apply_search(
+    scope: SearchScope,
+    library_query: &mut String,
+    ctx: &egui::Context,
+    query: String,
+) -> PageType {
+    match scope {
+        SearchScope::Library => {
+            *library_query = query;
+            PageType::Games
+        }
+        SearchScope::Catalog => {
+            ctx.data_mut(|data| data.insert_temp(catalog_search_key(), query));
+            PageType::Store
+        }
+    }
 }
 
 fn clipped_text(ui: &Ui, rect: Rect, text: &str, size: f32, color: Color32) {
@@ -429,8 +474,12 @@ fn navigation(app: &mut AeAppEguiApp, ui: &mut Ui) {
                 ui.painter().galley(rect.min + vec2(72.0, 14.0), galley, TEXT);
                 if response.clicked() {
                     navigate(app, PageType::Games, ui.ctx());
-                    app.game_sel = game.slug;
-                    app.library_details = true;
+                    crate::views::game_hub_view::open_tab(
+                        app,
+                        ui.ctx(),
+                        &game.slug,
+                        crate::views::game_hub_view::GameHubTab::Overview,
+                    );
                 }
             }
         });
@@ -487,21 +536,32 @@ fn toolbar(app: &mut AeAppEguiApp, ui: &mut Ui) {
         "Search",
         MUTED,
     );
+    let search_scope = SearchScope::for_page(&app.page_view);
+    let mut query = match search_scope {
+        SearchScope::Library => app.game_view_bar.search_buffer.clone(),
+        SearchScope::Catalog => catalog_search(ui.ctx()),
+    };
     ui.scope(|ui| {
         ui.visuals_mut().override_text_color = Some(Color32::from_rgb(38, 38, 46));
         let input = Rect::from_min_max(search.min + vec2(36.0, 0.0), search.max - vec2(4.0, 0.0));
         if ui
             .put(
                 input,
-                egui::TextEdit::singleline(&mut app.game_view_bar.search_buffer)
+                egui::TextEdit::singleline(&mut query)
                     .font(FontId::proportional(14.0))
                     .frame(false)
                     .margin(vec2(4.0, 7.0))
-                    .hint_text("Search games and add-ons"),
+                    .hint_text(search_scope.hint()),
             )
             .changed()
         {
-            navigate(app, PageType::Games, ui.ctx());
+            let page = apply_search(
+                search_scope,
+                &mut app.game_view_bar.search_buffer,
+                ui.ctx(),
+                query,
+            );
+            navigate(app, page, ui.ctx());
         }
     });
     if all.width() > 680.0 {
@@ -514,7 +574,7 @@ fn toolbar(app: &mut AeAppEguiApp, ui: &mut Ui) {
                 ui,
                 Rect::from_center_size(rect.center(), vec2(16.0, 16.0)),
                 name,
-                TEXT,
+                MUTED,
             ) {
                 let center = rect.center();
                 let line = Stroke::new(1.5, TEXT);
@@ -527,13 +587,23 @@ fn toolbar(app: &mut AeAppEguiApp, ui: &mut Ui) {
                 ui.painter().circle_filled(center + vec2(0.0, 6.0), 1.5, TEXT);
                 ui.painter().circle_filled(center + vec2(5.0, 6.0), 1.5, TEXT);
             }
-            ui.interact(rect, ui.id().with(name), egui::Sense::hover()).on_hover_text(
-                match index {
-                    0 => "Wishlist is not connected yet.",
-                    1 => "Purchases open on EA's website.",
-                    _ => "No notifications available.",
-                },
-            );
+            let response = ui.interact(rect, ui.id().with(name), egui::Sense::hover());
+            response.widget_info(|| {
+                egui::WidgetInfo::labeled(
+                    egui::WidgetType::Button,
+                    false,
+                    match index {
+                        0 => "Wishlist unavailable",
+                        1 => "Cart unavailable",
+                        _ => "Notifications unavailable",
+                    },
+                )
+            });
+            response.on_hover_text(match index {
+                0 => "Wishlist is not connected yet.",
+                1 => "Purchases open on EA's website.",
+                _ => "No notifications available.",
+            });
         }
         ui.painter().line_segment(
             [
@@ -649,9 +719,18 @@ fn social(app: &mut AeAppEguiApp, ui: &mut Ui) {
                                 ui.add_space(8.0);
                             }
                             let enabled = matches!(label, "My profile" | "Settings");
-                            let (row, hit) =
-                                ui.allocate_exact_size(vec2(140.0, 40.0), egui::Sense::click());
-                            if hit.hovered() {
+                            let (row, hit) = ui.allocate_exact_size(
+                                vec2(140.0, 40.0),
+                                if enabled {
+                                    egui::Sense::click()
+                                } else {
+                                    egui::Sense::hover()
+                                },
+                            );
+                            hit.widget_info(|| {
+                                egui::WidgetInfo::labeled(egui::WidgetType::Button, enabled, label)
+                            });
+                            if enabled && hit.hovered() {
                                 ui.painter().rect_filled(row, 4.0, SURFACE_HOVER);
                             }
                             if let Some(color) = match label {
@@ -685,7 +764,7 @@ fn social(app: &mut AeAppEguiApp, ui: &mut Ui) {
                                 Align2::LEFT_CENTER,
                                 label,
                                 FontId::proportional(14.0),
-                                TEXT,
+                                if enabled { TEXT } else { MUTED },
                             );
                             if hit.clicked() && enabled {
                                 if label == "Settings" {
@@ -799,6 +878,49 @@ fn social(app: &mut AeAppEguiApp, ui: &mut Ui) {
     {
         ui.ctx()
             .data_mut(|data| data.insert_temp(egui::Id::new("ea-friends-collapsed"), !collapsed));
+    }
+}
+
+#[cfg(test)]
+mod search_tests {
+    use super::*;
+
+    #[test]
+    fn catalog_search_never_filters_or_routes_into_the_owned_library() {
+        let ctx = egui::Context::default();
+        let mut owned = "Apex".to_owned();
+        let page = apply_search(
+            SearchScope::for_page(&PageType::Store),
+            &mut owned,
+            &ctx,
+            "Payback".into(),
+        );
+        assert_eq!(page, PageType::Store);
+        assert_eq!(owned, "Apex");
+        assert_eq!(catalog_search(&ctx), "Payback");
+
+        let page = apply_search(
+            SearchScope::for_page(&PageType::Games),
+            &mut owned,
+            &ctx,
+            "Dragon".into(),
+        );
+        assert_eq!(page, PageType::Games);
+        assert_eq!(owned, "Dragon");
+        assert_eq!(catalog_search(&ctx), "Payback");
+    }
+
+    #[test]
+    fn discovery_search_targets_the_public_catalog_not_unverified_membership_results() {
+        let ctx = egui::Context::default();
+        let mut owned = String::new();
+        let scope = SearchScope::for_page(&PageType::EaPlay);
+        assert_eq!(scope.hint(), "Search catalog games");
+        assert_eq!(
+            apply_search(scope, &mut owned, &ctx, "Sims".into()),
+            PageType::Store
+        );
+        assert!(owned.is_empty());
     }
 }
 fn friend_row(
@@ -1138,9 +1260,12 @@ fn home(app: &mut AeAppEguiApp, ui: &mut Ui) {
                 if let Some(game) =
                     app.games.values().find(|game| game.slug.contains("apex")).cloned()
                 {
-                    app.game_sel = game.slug;
-                    app.page_view = PageType::Games;
-                    app.library_details = true;
+                    crate::views::game_hub_view::open_tab(
+                        app,
+                        ui.ctx(),
+                        &game.slug,
+                        crate::views::game_hub_view::GameHubTab::Overview,
+                    );
                 } else {
                     ui.ctx().open_url(egui::OpenUrl::new_tab(
                         "https://www.ea.com/games/apex-legends/apex-legends",
@@ -1243,9 +1368,12 @@ fn home(app: &mut AeAppEguiApp, ui: &mut Ui) {
                             .interact(art, ui.id().with(&game.slug), egui::Sense::click())
                             .clicked()
                         {
-                            app.game_sel = game.slug.clone();
-                            app.page_view = PageType::Games;
-                            app.library_details = true;
+                            crate::views::game_hub_view::open_tab(
+                                app,
+                                ui.ctx(),
+                                &game.slug,
+                                crate::views::game_hub_view::GameHubTab::Overview,
+                            );
                         }
                     }
                 }

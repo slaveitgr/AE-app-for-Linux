@@ -5,6 +5,108 @@ use crate::{shell, ui_image::UIImageType, AeAppEguiApp, GameDetailsWrapper, Game
 use egui::{pos2, vec2, Align2, Color32, FontId, Rect, Sense, Stroke, Ui};
 const PANEL: Color32 = Color32::from_rgba_premultiplied(18, 19, 31, 235);
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum GameHubTab {
+    Overview = 0,
+    Currency = 1,
+    Addons = 2,
+}
+
+fn tab_key(slug: &str) -> egui::Id {
+    egui::Id::new(("aeapp-game-hub-tab", slug))
+}
+
+/// Open a known library title on the requested tab, regardless of its previous selection.
+pub(crate) fn open_tab(app: &mut AeAppEguiApp, ctx: &egui::Context, slug: &str, tab: GameHubTab) {
+    if !app.games.contains_key(slug) {
+        return;
+    }
+    app.game_sel = slug.to_owned();
+    app.page_view = PageType::Games;
+    app.library_details = true;
+    ctx.data_mut(|data| data.insert_temp(tab_key(slug), tab as usize));
+}
+
+fn begin_details_request(
+    details: &mut GameDetailsWrapper,
+    sender: &std::sync::mpsc::Sender<AeAppLibRequest>,
+    slug: &str,
+) -> bool {
+    if !matches!(
+        details,
+        GameDetailsWrapper::Unloaded | GameDetailsWrapper::Failed(_)
+    ) {
+        return false;
+    }
+    match sender.send(AeAppLibRequest::GetGameDetailsRequest(slug.to_owned())) {
+        Ok(()) => {
+            *details = GameDetailsWrapper::Loading;
+            true
+        }
+        Err(_) => {
+            *details = GameDetailsWrapper::Failed(
+                "The game-details service is unavailable. Reconnect and try again.".into(),
+            );
+            false
+        }
+    }
+}
+
+fn request_details(app: &mut AeAppEguiApp, slug: &str) {
+    if app.is_preview() {
+        return;
+    }
+    if let Some(game) = app.games.get_mut(slug) {
+        begin_details_request(&mut game.details, &app.backend.backend_commander, slug);
+    }
+}
+
+fn details_notice(app: &mut AeAppEguiApp, ui: &mut Ui, game: &GameInfo) {
+    match &game.details {
+        GameDetailsWrapper::Loading => {
+            ui.horizontal(|ui| {
+                ui.spinner();
+                ui.label("Loading game details…");
+            });
+            ui.add_space(18.0);
+        }
+        GameDetailsWrapper::Failed(message) => {
+            egui::Frame::none().fill(shell::SURFACE).rounding(8.0).inner_margin(16.0).show(
+                ui,
+                |ui| {
+                    ui.set_width((ui.available_width() - 32.0).max(0.0));
+                    ui.label(
+                        egui::RichText::new("Game details couldn't load").font(shell::bold(16.0)),
+                    );
+                    ui.label(message);
+                    ui.add_space(8.0);
+                    if ui.add_enabled(!app.is_preview(), egui::Button::new("Retry")).clicked() {
+                        request_details(app, &game.slug);
+                    }
+                },
+            );
+            ui.add_space(18.0);
+        }
+        _ => {}
+    }
+}
+
+fn playtime_text(time: Option<u32>) -> String {
+    match time {
+        Some(time) => format!("{} hrs {} mins", time / 10, (time % 10) * 6),
+        None => "Unavailable".to_owned(),
+    }
+}
+
+fn achievement_count(unlocked: Option<u16>, total: Option<u16>) -> Option<String> {
+    match (unlocked, total) {
+        (Some(unlocked), Some(total)) if unlocked <= total => {
+            Some(format!("{unlocked} / {total} unlocked"))
+        }
+        _ => None,
+    }
+}
+
 fn text(ui: &Ui, rect: Rect, value: &str, font: FontId, color: Color32) {
     let galley = ui.painter().layout(value.to_owned(), font, color, rect.width());
     ui.painter().with_clip_rect(rect).galley(rect.min, galley, color);
@@ -63,24 +165,20 @@ pub fn backdrop(app: &AeAppEguiApp, ui: &Ui, rect: Rect) {
 }
 
 pub fn show(app: &mut AeAppEguiApp, ui: &mut Ui) {
-    let Some(game) = app.games.get(&app.game_sel).cloned() else {
+    let slug = app.game_sel.clone();
+    if app
+        .games
+        .get(&slug)
+        .is_some_and(|game| matches!(game.details, GameDetailsWrapper::Unloaded))
+    {
+        request_details(app, &slug);
+    }
+    let Some(game) = app.games.get(&slug).cloned() else {
         app.library_details = false;
         return;
     };
-    if matches!(game.details, GameDetailsWrapper::Unloaded) && !app.is_preview() {
-        if app
-            .backend
-            .backend_commander
-            .send(AeAppLibRequest::GetGameDetailsRequest(game.slug.clone()))
-            .is_ok()
-        {
-            if let Some(info) = app.games.get_mut(&game.slug) {
-                info.details = GameDetailsWrapper::Loading;
-            }
-        }
-    }
     ui.spacing_mut().item_spacing.y = 0.0;
-    let tab_id = egui::Id::new(("aeapp-game-hub-tab", &game.slug));
+    let tab_id = tab_key(&game.slug);
     let mut selected = ui.ctx().data(|d| d.get_temp::<usize>(tab_id)).unwrap_or(0).min(2);
     egui::ScrollArea::vertical()
         .id_source(("game-hub", &game.slug))
@@ -128,10 +226,12 @@ pub fn show(app: &mut AeAppEguiApp, ui: &mut Ui) {
                 });
             });
             ui.advance_cursor_after_rect(header);
+            details_notice(app, ui, &game);
             match selected {
                 1 => {
                     ui.label(
-                        egui::RichText::new("Currency offers are not loaded.").color(shell::MUTED),
+                        egui::RichText::new("Currency offers are unavailable here.")
+                            .color(shell::MUTED),
                     );
                     ui.add_space(18.0);
                     external(app, ui, &game, "VIEW CURRENCY ON EA.COM");
@@ -146,7 +246,7 @@ pub fn show(app: &mut AeAppEguiApp, ui: &mut Ui) {
                     ui.add_space(16.0);
                     if game.dlc.is_empty() {
                         ui.label(
-                            egui::RichText::new("Add-on details are not loaded.")
+                            egui::RichText::new("No owned add-ons were returned for this game.")
                                 .color(shell::MUTED),
                         );
                     } else {
@@ -254,7 +354,7 @@ fn overview(app: &mut AeAppEguiApp, ui: &mut Ui, game: &GameInfo) {
     ui.painter().text(
         origin + vec2(content_width, 59.0),
         Align2::RIGHT_TOP,
-        "—",
+        "Unavailable",
         FontId::proportional(14.0),
         shell::TEXT,
     );
@@ -267,12 +367,10 @@ fn overview(app: &mut AeAppEguiApp, ui: &mut Ui, game: &GameInfo) {
         shell::MUTED,
         content_width,
     );
-    let playtime = match &game.details {
-        GameDetailsWrapper::Available(details) if details.time > 0 && !app.is_preview() => {
-            format!("{} hrs {} mins", details.time / 10, (details.time % 10) * 6)
-        }
-        _ => "Not loaded".to_owned(),
-    };
+    let playtime = playtime_text(match &game.details {
+        GameDetailsWrapper::Available(details) => details.time,
+        _ => None,
+    });
     ui.painter().text(
         origin + vec2(content_width, 111.0),
         Align2::RIGHT_TOP,
@@ -344,7 +442,7 @@ fn overview(app: &mut AeAppEguiApp, ui: &mut Ui, game: &GameInfo) {
     ui.painter().text(
         inner.right_top() + vec2(0.0, 8.0),
         Align2::RIGHT_TOP,
-        "Not loaded",
+        "Unavailable",
         FontId::proportional(14.0),
         shell::TEXT,
     );
@@ -352,7 +450,7 @@ fn overview(app: &mut AeAppEguiApp, ui: &mut Ui, game: &GameInfo) {
     label(
         ui,
         inner.min + vec2(0.0, 56.0),
-        "Age rating is not loaded.",
+        "Age rating unavailable.",
         14.0,
         shell::MUTED,
         inner.width(),
@@ -377,23 +475,36 @@ fn overview(app: &mut AeAppEguiApp, ui: &mut Ui, game: &GameInfo) {
     ui.add_space(25.0);
     ui.separator();
     ui.add_space(24.0);
-    let title = match &game.details {
-        GameDetailsWrapper::Available(details)
-            if details.achievements_total > 0 && !app.is_preview() =>
-        {
-            format!(
-                "Achievements ({} / {} unlocked)",
-                details.achievements_unlocked, details.achievements_total
-            )
-        }
-        _ => "Achievements".to_owned(),
+    let (count, no_achievements) = match &game.details {
+        GameDetailsWrapper::Available(details) => (
+            achievement_count(details.achievements_unlocked, details.achievements_total),
+            details.achievements_total == Some(0)
+                && matches!(details.achievements_unlocked, None | Some(0)),
+        ),
+        _ => (None, false),
     };
+    let title = count
+        .map(|count| format!("Achievements ({count})"))
+        .unwrap_or_else(|| "Achievements".to_owned());
     ui.label(egui::RichText::new(title).font(shell::bold(16.0)));
     ui.add_space(20.0);
-    ui.label(egui::RichText::new("Achievement details are not loaded.").color(shell::MUTED));
+    ui.label(
+        egui::RichText::new(if no_achievements {
+            "No achievements are reported for this game."
+        } else {
+            "Achievement information is unavailable."
+        })
+        .color(shell::MUTED),
+    );
     ui.add_space(28.0);
     external(app, ui, game, "VIEW GAME ON EA.COM");
     if let GameDetailsWrapper::Available(details) = &game.details {
+        if details.system_requirements_min.is_none() && details.system_requirements_rec.is_none() {
+            ui.add_space(28.0);
+            ui.label(
+                egui::RichText::new("System requirements are unavailable.").color(shell::MUTED),
+            );
+        }
         if let Some(requirements) = &details.system_requirements_min {
             ui.add_space(50.0);
             ui.heading("Minimum requirements");
@@ -404,5 +515,84 @@ fn overview(app: &mut AeAppEguiApp, ui: &mut Ui, game: &GameInfo) {
             ui.heading("Recommended requirements");
             egui_demo_lib::easy_mark::easy_mark(ui, requirements);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{achievement_count, begin_details_request, playtime_text};
+    use crate::{bridge_thread::AeAppLibRequest, GameDetails, GameDetailsWrapper};
+
+    fn unavailable_details() -> GameDetails {
+        GameDetails {
+            time: None,
+            achievements_unlocked: None,
+            achievements_total: None,
+            path: String::new(),
+            system_requirements_min: None,
+            system_requirements_rec: None,
+        }
+    }
+
+    #[test]
+    fn verified_zero_playtime_is_different_from_unavailable() {
+        assert_eq!(playtime_text(None), "Unavailable");
+        assert_eq!(playtime_text(Some(0)), "0 hrs 0 mins");
+        assert_eq!(playtime_text(Some(12)), "1 hrs 12 mins");
+    }
+
+    #[test]
+    fn achievement_counts_require_known_consistent_values_and_preserve_zero() {
+        assert_eq!(achievement_count(None, None), None);
+        assert_eq!(achievement_count(Some(0), None), None);
+        assert_eq!(achievement_count(None, Some(12)), None);
+        assert_eq!(achievement_count(Some(13), Some(12)), None);
+        assert_eq!(
+            achievement_count(Some(0), Some(0)),
+            Some("0 / 0 unlocked".into())
+        );
+        assert_eq!(
+            achievement_count(Some(0), Some(12)),
+            Some("0 / 12 unlocked".into())
+        );
+    }
+
+    #[test]
+    fn failed_response_can_retry_and_loading_does_not_send_duplicates() {
+        let (sender, receiver) = std::sync::mpsc::channel();
+        let mut details: GameDetailsWrapper = Err("Service unavailable".to_owned()).into();
+        assert!(
+            matches!(&details, GameDetailsWrapper::Failed(message) if message == "Service unavailable")
+        );
+
+        assert!(begin_details_request(&mut details, &sender, "owned-game"));
+        assert!(matches!(details, GameDetailsWrapper::Loading));
+        assert!(
+            matches!(receiver.try_recv(), Ok(AeAppLibRequest::GetGameDetailsRequest(slug)) if slug == "owned-game")
+        );
+        assert!(!begin_details_request(&mut details, &sender, "owned-game"));
+        assert!(receiver.try_recv().is_err());
+
+        details = Ok(unavailable_details()).into();
+        assert!(matches!(details, GameDetailsWrapper::Available(ref data) if data.time.is_none()));
+        assert!(!begin_details_request(&mut details, &sender, "owned-game"));
+    }
+
+    #[test]
+    fn disconnected_request_has_retryable_failure_instead_of_stuck_loading() {
+        let (sender, receiver) = std::sync::mpsc::channel();
+        drop(receiver);
+        let mut details = GameDetailsWrapper::Unloaded;
+        assert!(!begin_details_request(&mut details, &sender, "owned-game"));
+        assert!(matches!(details, GameDetailsWrapper::Failed(_)));
+
+        let (reconnected, receiver) = std::sync::mpsc::channel();
+        assert!(begin_details_request(
+            &mut details,
+            &reconnected,
+            "owned-game"
+        ));
+        assert!(matches!(details, GameDetailsWrapper::Loading));
+        assert!(receiver.try_recv().is_ok());
     }
 }

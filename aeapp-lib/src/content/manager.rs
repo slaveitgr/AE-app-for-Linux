@@ -25,6 +25,7 @@ use std::{
         atomic::{AtomicUsize, Ordering},
         Arc, Mutex,
     },
+    time::Duration,
 };
 use thiserror::Error;
 use tokio::{
@@ -35,6 +36,7 @@ use tokio::{
 };
 use tokio_util::sync::CancellationToken;
 const QUEUE_FILE: &str = "download_queue.json";
+const DOWNLOAD_PREPARATION_TIMEOUT: Duration = Duration::from_secs(60);
 
 #[derive(Default, Builder, Getters, Clone, Serialize, Deserialize, PartialEq)]
 pub struct QueuedGame {
@@ -133,10 +135,23 @@ pub enum DownloaderError {
     Cancelled,
     #[error("download worker failed: {0}")]
     Task(String),
+    #[error("preparing the download timed out; Retry can safely restart preparation")]
+    PreparationTimeout,
     #[error("downloaded file failed its checksum: {0}")]
     Checksum(String),
     #[error("archive path is outside the installation or download cache: {0}")]
     UnsafeArchivePath(String),
+}
+
+/// Only wrap read-only constructor work. Dropping this future cannot cancel an
+/// active transfer: GameDownloader::download() is called after it completes.
+async fn prepare_downloader<T>(
+    preparation: impl Future<Output = Result<T, DownloaderError>>,
+    deadline: Duration,
+) -> Result<T, DownloaderError> {
+    tokio::time::timeout(deadline, preparation)
+        .await
+        .map_err(|_| DownloaderError::PreparationTimeout)?
 }
 
 impl DownloadQueue {
@@ -546,7 +561,12 @@ impl ContentManager {
         self.queue.paused = true;
         self.queue.last_error = None;
         self.queue.save().await?;
-        let mut downloader = match GameDownloader::new(&self.service, &game).await {
+        let mut downloader = match prepare_downloader(
+            GameDownloader::new(&self.service, &game),
+            DOWNLOAD_PREPARATION_TIMEOUT,
+        )
+        .await
+        {
             Ok(downloader) => downloader,
             Err(error) => {
                 self.queue.last_error = Some(error.to_string());
@@ -683,6 +703,35 @@ impl ContentManager {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[tokio::test]
+    async fn stalled_preparation_returns_a_typed_retryable_timeout() {
+        let result = prepare_downloader(
+            std::future::pending::<Result<(), DownloaderError>>(),
+            Duration::from_millis(1),
+        )
+        .await;
+        assert!(matches!(result, Err(DownloaderError::PreparationTimeout)));
+    }
+    #[tokio::test]
+    async fn preparation_deadline_preserves_constructor_success_and_ordinary_failure() {
+        let ready = prepare_downloader(
+            std::future::ready(Ok::<_, DownloaderError>("prepared")),
+            Duration::from_secs(1),
+        )
+        .await
+        .unwrap();
+        assert_eq!(ready, "prepared");
+        let failed = prepare_downloader(
+            std::future::ready(Err::<(), _>(DownloaderError::UnsafeArchivePath(
+                "invalid entry".into(),
+            ))),
+            Duration::from_secs(1),
+        )
+        .await;
+        assert!(
+            matches!(failed, Err(DownloaderError::UnsafeArchivePath(path)) if path == "invalid entry")
+        );
+    }
     fn game(id: &str) -> QueuedGame {
         QueuedGame {
             offer_id: id.to_owned(),

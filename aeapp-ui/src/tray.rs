@@ -1,5 +1,5 @@
 //! Native Linux StatusNotifierItem integration without GTK.
-//! Only a registered tray may keep the window alive when it is closed.
+//! Only a registered tray with a supported restore path may hide the window.
 use std::sync::{mpsc, Arc, Mutex};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -72,6 +72,20 @@ impl Shared {
             state.ready = false;
         }
     }
+    fn can_hide(&self) -> bool {
+        let ready = self.state.lock().map(|state| state.ready && !state.stopped).unwrap_or(false);
+        if !ready {
+            return false;
+        }
+        #[cfg(target_os = "linux")]
+        {
+            // Native Wayland cannot hide a winit 0.29 window. Registration alone
+            // must not make its no-op Visible(false) look like a tray close.
+            self.x11_restore.lock().map(|restore| restore.is_some()).unwrap_or(false)
+        }
+        #[cfg(not(target_os = "linux"))]
+        false
+    }
 }
 
 pub struct NativeTray {
@@ -143,13 +157,13 @@ impl NativeTray {
         #[cfg(not(target_os = "linux"))]
         let _ = window;
     }
-    /// A false result means closing must exit, rather than leaving an inaccessible window.
+    /// A false result means closing must minimize instead of hiding to the tray.
     pub fn is_available(&self) -> bool {
         #[cfg(target_os = "linux")]
         if self.worker.is_finished() {
             return false;
         }
-        self.shared.state.lock().map(|state| state.ready && !state.stopped).unwrap_or(false)
+        self.shared.can_hide()
     }
     pub fn try_recv(&self) -> Option<TrayEvent> {
         self.events.try_recv().ok()
@@ -369,5 +383,28 @@ mod tests {
     #[test]
     fn preview_never_starts_a_native_tray() {
         assert!(NativeTray::start(&egui::Context::default(), true).is_none());
+    }
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn registration_requires_a_restore_path_before_hiding() {
+        let (events, _) = mpsc::channel();
+        let shared = Shared {
+            state: Mutex::new(Availability::default()),
+            events,
+            context: egui::Context::default(),
+            x11_restore: Mutex::new(None),
+        };
+        assert!(shared.registered(shared.generation()));
+        assert!(!shared.can_hide());
+
+        let (sender, _receiver) = mpsc::sync_channel(1);
+        *shared.x11_restore.lock().unwrap() = Some(sender);
+        assert!(shared.can_hide());
+        shared.unavailable();
+        assert!(!shared.can_hide());
+        assert!(shared.registered(shared.generation()));
+        assert!(shared.can_hide());
+        shared.stop();
+        assert!(!shared.can_hide());
     }
 }

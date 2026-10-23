@@ -331,12 +331,13 @@ fn unavailable_filter(ui: &mut Ui, rect: Rect, title: &str, reason: &str) {
         [center + vec2(0.0, 2.0), center + vec2(4.0, -2.0)],
         Stroke::new(1.5, COPY),
     );
-    ui.interact(
+    let response = ui.interact(
         rect,
         ui.id().with(("catalog-filter", title)),
         Sense::hover(),
-    )
-    .on_hover_text(reason);
+    );
+    response.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, false, title));
+    response.on_hover_text(reason);
 }
 
 /// Show a single row of public releases with verified years and locally cached art.
@@ -483,7 +484,7 @@ pub fn browse(app: &mut AeAppEguiApp, ui: &mut Ui) {
     }
     ui.ctx().data_mut(|data| data.insert_temp(sort_id, sort));
     ui.advance_cursor_after_rect(header);
-    let search = app.game_view_bar.search_buffer.to_lowercase();
+    let search = shell::catalog_search(ui.ctx()).trim().to_lowercase();
     let mut products: Vec<PublicProduct> = catalog
         .products
         .iter()
