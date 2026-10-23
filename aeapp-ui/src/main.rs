@@ -85,6 +85,9 @@ struct Args {
     /// Download options preview state (local fixtures only).
     #[arg(long, default_value = "ready", value_parser = ["ready", "calculating", "insufficient", "error"])]
     preview_install_state: String,
+    /// Show a local sample transfer in the sidebar on any preview page.
+    #[arg(long)]
+    preview_active_download: bool,
     #[arg(short, long)]
     allow_bf3: bool,
 }
@@ -563,7 +566,8 @@ impl AeAppEguiApp {
                 .game_settings
                 .insert("star-wars-jedi-survivor".to_owned(), GameSettings::new());
         }
-        let preview_downloads = is_preview && preview_page == "downloads";
+        let preview_downloads =
+            is_preview && (preview_page == "downloads" || args.preview_active_download);
         let mut preview_queue = HashMap::new();
         if preview_downloads {
             views::downloads_view::seed_preview_status(
@@ -651,7 +655,7 @@ impl AeAppEguiApp {
                 PageType::Store
             } else if is_preview && preview_page == "ea-play" {
                 PageType::EaPlay
-            } else if preview_downloads {
+            } else if is_preview && preview_page == "downloads" {
                 PageType::Downloads
             } else if !is_preview {
                 PageType::Home

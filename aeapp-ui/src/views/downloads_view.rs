@@ -42,6 +42,202 @@ fn fraction(bytes: usize, total: usize) -> Option<f32> {
         Some((bytes as f64 / total as f64).clamp(0.0, 1.0) as f32)
     }
 }
+fn current_status(ctx: &egui::Context, current: &QueuedDownload) -> DownloadStatus {
+    ctx.data(|data| data.get_temp::<DownloadStatus>(status_key()))
+        .filter(|status| status.offer_id.as_deref() == Some(current.offer.as_str()))
+        .unwrap_or_else(|| DownloadStatus {
+            offer_id: Some(current.offer.clone()),
+            bytes: current.downloaded_bytes,
+            total: current.total_bytes,
+            ..DownloadStatus::default()
+        })
+}
+
+/// Always visible in the Windows-style sidebar, independently of the current page.
+/// Reads the same status as the full download manager and never controls a transfer.
+pub fn sidebar_downloads(app: &AeAppEguiApp, ui: &mut Ui, rect: Rect) -> bool {
+    let current = app.installing_now.as_ref();
+    let status = current.map(|download| current_status(ui.ctx(), download));
+    let queued = app.install_queue.len();
+    let game = current.and_then(|download| {
+        app.games
+            .get(&download.slug)
+            .or_else(|| app.games.values().find(|game| game.offer == download.offer))
+    });
+    let title = game.map(|game| game.name.as_str()).unwrap_or("Game download");
+    let progress = status.as_ref().and_then(|status| fraction(status.bytes, status.total));
+    let state = if let Some(status) = &status {
+        if let Some(progress) = progress {
+            format!("{} · {:.0}%", phase_text(status.phase), progress * 100.0)
+        } else {
+            phase_text(status.phase).to_owned()
+        }
+    } else if queued > 0 {
+        format!("{queued} queued")
+    } else {
+        "No active downloads".to_owned()
+    };
+    let selected = app.page_view == crate::PageType::Downloads;
+    let response = ui.interact(
+        rect,
+        ui.id().with("sidebar-download-manager"),
+        egui::Sense::click(),
+    );
+    response.widget_info(|| {
+        egui::WidgetInfo::labeled(
+            egui::WidgetType::Button,
+            ui.is_enabled(),
+            format!("Download manager: {state}"),
+        )
+    });
+    if selected || response.hovered() {
+        ui.painter().rect_filled(
+            rect,
+            0.0,
+            if selected {
+                shell::SURFACE_HOVER
+            } else {
+                shell::SURFACE
+            },
+        );
+    }
+    ui.painter().line_segment(
+        [
+            rect.left_top() + vec2(12.0, 0.0),
+            rect.right_top() - vec2(12.0, 0.0),
+        ],
+        Stroke::new(1.0, shell::BORDER),
+    );
+    let center = pos2(rect.left() + 36.0, rect.center().y);
+    let phase = status.as_ref().map(|status| status.phase);
+    let color = match phase {
+        Some(DownloadPhase::Paused) => shell::MUTED,
+        Some(DownloadPhase::Failed) => Color32::from_rgb(255, 126, 126),
+        Some(DownloadPhase::Finalizing | DownloadPhase::Finished) => shell::GREEN,
+        _ => ACCENT_COLOR,
+    };
+    if current.is_some() || queued > 0 {
+        ui.painter().circle_stroke(center, 20.0, Stroke::new(2.5, shell::BORDER));
+        let spinning = progress.is_none()
+            && matches!(
+                phase,
+                Some(DownloadPhase::Idle | DownloadPhase::Downloading | DownloadPhase::Finalizing)
+            );
+        let amount = if spinning {
+            0.23
+        } else {
+            progress.unwrap_or(0.0)
+        };
+        if amount > 0.0 {
+            let start = -std::f32::consts::FRAC_PI_2
+                + if spinning {
+                    ui.input(|input| input.time as f32) * 2.0
+                } else {
+                    0.0
+                };
+            let steps = (64.0 * amount).ceil().max(2.0) as usize;
+            let points = (0..=steps)
+                .map(|step| {
+                    let angle = start + std::f32::consts::TAU * amount * step as f32 / steps as f32;
+                    center + vec2(angle.cos(), angle.sin()) * 20.0
+                })
+                .collect();
+            ui.painter().add(egui::Shape::line(points, Stroke::new(2.5, color)));
+        }
+        if spinning {
+            ui.ctx().request_repaint_after(std::time::Duration::from_millis(100));
+        }
+    }
+    let icon = Rect::from_center_size(center, vec2(24.0, 24.0));
+    let paused = phase == Some(DownloadPhase::Paused);
+    if !shell::original_icon(
+        ui,
+        icon,
+        if paused { "Pause" } else { "DOWNLOAD_QUEUE" },
+        shell::TEXT,
+    ) {
+        if paused {
+            for x in [-4.0, 4.0] {
+                ui.painter().line_segment(
+                    [center + vec2(x, -6.0), center + vec2(x, 6.0)],
+                    Stroke::new(2.0, shell::TEXT),
+                );
+            }
+        } else {
+            let line = Stroke::new(1.8, shell::TEXT);
+            ui.painter().line_segment([center + vec2(0.0, -7.0), center + vec2(0.0, 5.0)], line);
+            ui.painter().line_segment([center + vec2(-5.0, 0.0), center + vec2(0.0, 5.0)], line);
+            ui.painter().line_segment([center + vec2(0.0, 5.0), center + vec2(5.0, 0.0)], line);
+            ui.painter().line_segment([center + vec2(-7.0, 9.0), center + vec2(7.0, 9.0)], line);
+        }
+    }
+    let x = rect.left() + 72.0;
+    let width = rect.width() - 84.0;
+    let y = if current.is_some() {
+        rect.top() + 17.0
+    } else {
+        rect.top() + 28.0
+    };
+    let heading = ui.painter().layout_no_wrap(
+        "Download manager".to_owned(),
+        shell::bold(13.0),
+        shell::TEXT,
+    );
+    ui.painter().galley(pos2(x, y), heading, shell::TEXT);
+    if current.is_some() {
+        text(
+            ui,
+            Rect::from_min_size(pos2(x, y + 23.0), vec2(width, 18.0)),
+            title,
+            12.0,
+            shell::TEXT,
+            1,
+        );
+    }
+    text(
+        ui,
+        Rect::from_min_size(
+            pos2(
+                x,
+                if current.is_some() {
+                    rect.bottom() - 29.0
+                } else {
+                    rect.top() + 51.0
+                },
+            ),
+            vec2(width, 18.0),
+        ),
+        &state,
+        11.0,
+        if phase == Some(DownloadPhase::Failed) {
+            color
+        } else {
+            shell::MUTED
+        },
+        1,
+    );
+    if queued > 0 && current.is_some() {
+        let badge = pos2(rect.right() - 20.0, rect.top() + 23.0);
+        ui.painter().circle_filled(badge, 9.0, ACCENT_COLOR);
+        ui.painter().text(
+            badge,
+            Align2::CENTER_CENTER,
+            if queued > 9 {
+                "9+".to_owned()
+            } else {
+                queued.to_string()
+            },
+            shell::bold(10.0),
+            Color32::WHITE,
+        );
+    }
+    let hover = if current.is_some() {
+        format!("{title}\n{state}\n{queued} queued\nOpen download manager")
+    } else {
+        format!("{state}\nOpen download manager")
+    };
+    response.on_hover_text(hover).clicked()
+}
 fn text(ui: &Ui, rect: Rect, value: &str, size: f32, color: Color32, rows: usize) {
     let mut job = egui::text::LayoutJob::simple_singleline(
         value.to_owned(),
@@ -256,10 +452,6 @@ fn render_row(
     ui.add_space(13.0);
 }
 pub fn downloads_view(app: &mut AeAppEguiApp, ui: &mut Ui) {
-    let status = ui
-        .ctx()
-        .data(|data| data.get_temp::<DownloadStatus>(status_key()))
-        .unwrap_or_default();
     let order = ui.ctx().data(|data| data.get_temp::<Vec<String>>(order_key())).unwrap_or_default();
     let mut queued: Vec<_> = app.install_queue.values().cloned().collect();
     queued.sort_by_key(|game| {
@@ -270,18 +462,8 @@ pub fn downloads_view(app: &mut AeAppEguiApp, ui: &mut Ui) {
         .auto_shrink(false)
         .show(ui, |ui| {
             if let Some(current) = app.installing_now.clone() {
-                let fallback = DownloadStatus {
-                    offer_id: Some(current.offer.clone()),
-                    bytes: current.downloaded_bytes,
-                    total: current.total_bytes,
-                    ..DownloadStatus::default()
-                };
-                let current_status = if status.offer_id.as_deref() == Some(current.offer.as_str()) {
-                    &status
-                } else {
-                    &fallback
-                };
-                render_row(app, ui, &current, Some(current_status), 0);
+                let status = current_status(ui.ctx(), &current);
+                render_row(app, ui, &current, Some(&status), 0);
             }
             for (position, game) in queued.iter().enumerate() {
                 render_row(app, ui, game, None, position);

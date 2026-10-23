@@ -854,6 +854,11 @@ pub fn show(app: &mut AeAppEguiApp, ui: &mut Ui) {
     ui.allocate_ui_at_rect(sidebar, |ui| {
         ui.set_clip_rect(sidebar);
         ui.with_layout(Layout::top_down(Align::Min), |ui| navigation(app, ui));
+        let downloads =
+            Rect::from_min_max(pos2(sidebar.left(), sidebar.bottom() - 100.0), sidebar.max);
+        if crate::views::downloads_view::sidebar_downloads(app, ui, downloads) {
+            navigate(app, PageType::Downloads, ui.ctx());
+        }
     });
     ui.allocate_ui_at_rect(friends, |ui| {
         ui.set_clip_rect(friends);
