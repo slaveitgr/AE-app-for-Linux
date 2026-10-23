@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256" role="img" aria-label="AeApp">
+  <rect width="256" height="256" rx="28" fill="#1668ff"/>
+  <path fill="#fff" fill-rule="evenodd" d="M36 190 78 66h31l43 124h-32l-8-26H76l-8 26H36Zm48-52h20l-10-35-10 35Z"/>
+  <path fill="#fff" d="M155 66h69v27h-40v21h35v27h-35v22h40v27h-69V66Z"/>
+</svg>

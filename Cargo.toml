@@ -1,13 +1,13 @@
 [workspace]
 resolver = "2"
 members = [
-    "maxima-bootstrap",
-    "maxima-cli",
-    "maxima-lib",
-    "maxima-service",
-    "maxima-tui",
-    "maxima-ui",
-    "maxima-resources",
+    "aeapp-bootstrap",
+    "aeapp-cli",
+    "aeapp-lib",
+    "aeapp-service",
+    "aeapp-tui",
+    "aeapp-ui",
+    "aeapp-resources",
 ]
 
 [profile.release]

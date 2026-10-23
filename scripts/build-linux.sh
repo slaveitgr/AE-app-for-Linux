@@ -24,9 +24,9 @@ repo_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$repo_dir"
 
 cargo build --locked --release \
-    -p maxima-ui \
-    -p maxima-bootstrap \
-    -p maxima-cli
+    -p aeapp-ui \
+    -p aeapp-bootstrap \
+    -p aeapp-cli
 
-printf '%s\n' 'Build completed. Keep maxima, maxima-bootstrap and maxima-cli together.'
+printf '%s\n' 'Build completed. Keep aeapp, aeapp-bootstrap and aeapp-cli together.'
 printf '%s\n' 'Default output: target/release/ (or your configured Cargo output directory).'

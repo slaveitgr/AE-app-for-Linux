@@ -29,22 +29,22 @@ The following identifiers occur in native metadata or clear callback resources. 
 
 | Original object | Observed methods/signals | Current Linux implementation |
 | --- | --- | --- |
-| Authentication | `getAuthentication`, `refreshAuthToken`, `logout` | Maxima OAuth flow is connected; account testing and original bridge parity remain unverified. |
-| GamesManager | `getGameStatusV2`, `getBulkGameStatusV2`, `getInstallInfo`, `initiateDownload` | Maxima library/install/launch paths are connected. No original Qt WebChannel adapter is implemented. |
+| Authentication | `getAuthentication`, `refreshAuthToken`, `logout` | aeapp OAuth flow is connected; account testing and original bridge parity remain unverified. |
+| GamesManager | `getGameStatusV2`, `getBulkGameStatusV2`, `getInstallInfo`, `initiateDownload` | aeapp library/install/launch paths are connected. No original Qt WebChannel adapter is implemented. |
 | GamesManager maintenance | `initiateUninstall`, `initiateUpdateV3`, `issueDownloadControl`, `resolveCloudSyncConflict` | Full maintenance/conflict UI parity remains incomplete. |
-| GamesManager signals | `onInstallQueueChanged`, `onGameStatusUpdated`, `onGameLaunchStatusUpdated`, `onGameInstallError`, `onCloudSyncConflict` | Maxima events feed the current native UI; timing/schema parity is unverified. |
+| GamesManager signals | `onInstallQueueChanged`, `onGameStatusUpdated`, `onGameLaunchStatusUpdated`, `onGameInstallError`, `onCloudSyncConflict` | aeapp events feed the current native UI; timing/schema parity is unverified. |
 | Presence | `getFriendsPresence`, `updatePresence` | Current UI displays friends read only. Full presence editing is incomplete. |
 | ClientSettings | `getLanguage`, `setLanguage`, `getInstallLocation`, `setInstallLocation` | Native frontend preferences and install directory are implemented independently. |
 | OriginInfo / SpaRouting | SPA/bridge version metadata and native routing | No original-SPA host or full routing adapter. |
 | Platform | `openFolder`, `getFreeDiskSpace` | Selected native operations exist; original platform object parity is incomplete. |
 
-Original authentication callback pages invoke `authenticationJsHelper.onLoginSuccess(url)` and `onLogoutSuccess()`. Maxima's browser callback uses its own `maxima-bootstrap` path. These are different implementations and must be tested as such.
+Original authentication callback pages invoke `authenticationJsHelper.onLoginSuccess(url)` and `onLogoutSuccess()`. aeapp's browser callback uses its own `aeapp-bootstrap` path. These are different implementations and must be tested as such.
 
 ## Visual reproduction
 
 The current shell follows the supplied screenshots: a 40 px black titlebar, left EA navigation and installed games, central search/content, right profile/friends, account tabs and a separate per-game Proton panel. The Quantum reference provides primary blue `#276AFC`, secondary coral `#FF4747`, and navy surface values.
 
-The repository contains independently authored interface code and demo artwork. Optional EA Text/Display fonts can be imported locally from a user-provided `quantum.rcc` using `scripts/import-ea-fonts.py`. The imported fonts and original EA executable/resource bundles are not included in the source repository. Default builds retain the bundled Maxima font.
+The repository contains independently authored interface code and demo artwork. Optional EA Text/Display fonts can be imported locally from a user-provided `quantum.rcc` using `scripts/import-ea-fonts.py`. The imported fonts and original EA executable/resource bundles are not included in the source repository. Default builds retain the bundled aeapp font.
 
 The Home screen currently presents library content. Original promotional feeds, purchases, subscription management, social editing, notifications and other server-driven features do not have full native equivalents. Browse and EA Play links open the official websites.
 
@@ -52,7 +52,7 @@ The Home screen currently presents library content. Original promotional feeds, 
 
 1. Establish the main SPA payload/configuration in an authorized running reference session, or continue reproducing its visible behavior in native code.
 2. Record method/property/signal schemas and failure behavior of each required native object, including account states, downloads, maintenance, cloud conflicts and social presence. Avoid retaining tokens or personal account data in fixtures.
-3. Implement and test the corresponding Maxima-backed services or a native Qt/CEF compatibility host; a copied HTML page alone cannot supply the original native services.
+3. Implement and test the corresponding aeapp-backed services or a native Qt/CEF compatibility host; a copied HTML page alone cannot supply the original native services.
 4. Run account, entitlement, download, update, cloud-save and game-launch parity tests. Validate appearance at the reference viewport sizes and accessibility/input behavior.
 5. Track game compatibility separately. Reproducing the launcher cannot by itself supply Windows kernel or anti-cheat support on Linux.
 

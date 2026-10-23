@@ -1,4 +1,4 @@
-name: Linux build and preview
+name: aeapp Linux build and preview
 
 on:
   push:
@@ -46,38 +46,47 @@ jobs:
           cargo --version
 
       - name: Run library tests
-        run: cargo test --locked -p maxima-lib --lib
+        run: cargo test --locked -p aeapp-lib --lib
+
+      - name: Run native UI tests
+        run: cargo test --locked -p aeapp-ui --bin aeapp
+
+      - name: Run browser callback tests
+        run: cargo test --locked -p aeapp-bootstrap --bin aeapp-bootstrap
 
       - name: Build native client and companion binaries
-        run: cargo build --locked --release -p maxima-ui -p maxima-bootstrap -p maxima-cli
+        run: cargo build --locked --release -p aeapp-ui -p aeapp-bootstrap -p aeapp-cli
 
-      - name: Render isolated local preview
+      - name: Render isolated library and downloads previews
         env:
           LIBGL_ALWAYS_SOFTWARE: "1"
           GALLIUM_DRIVER: llvmpipe
-          XDG_DATA_HOME: ${{ runner.temp }}/maxima-preview/data
-          XDG_CONFIG_HOME: ${{ runner.temp }}/maxima-preview/config
-          XDG_CACHE_HOME: ${{ runner.temp }}/maxima-preview/cache
-          XDG_RUNTIME_DIR: ${{ runner.temp }}/maxima-preview/runtime
+          XDG_DATA_HOME: ${{ runner.temp }}/aeapp-preview/data
+          XDG_CONFIG_HOME: ${{ runner.temp }}/aeapp-preview/config
+          XDG_CACHE_HOME: ${{ runner.temp }}/aeapp-preview/cache
+          XDG_RUNTIME_DIR: ${{ runner.temp }}/aeapp-preview/runtime
         run: |
           mkdir -p "$XDG_DATA_HOME" "$XDG_CONFIG_HOME" "$XDG_CACHE_HOME" "$XDG_RUNTIME_DIR" preview-artifacts
           chmod 700 "$XDG_RUNTIME_DIR"
-          timeout 60s xvfb-run -a -s '-screen 0 1440x900x24' \
-            ./target/release/maxima --preview --preview-page library \
-            --screenshot "$GITHUB_WORKSPACE/preview-artifacts/library.png"
-          test -s preview-artifacts/library.png
+          for page in library downloads; do
+            timeout 60s xvfb-run -a -s '-screen 0 1440x900x24' \
+              ./target/release/aeapp --preview --preview-page "$page" \
+              --screenshot "$GITHUB_WORKSPACE/preview-artifacts/$page.png"
+            test -s "preview-artifacts/$page.png"
+          done
 
       - name: Package native binaries
         run: |
-          ./scripts/package-linux.sh "$RUNNER_TEMP/EA-for-Linux"
-          tar -czf preview-artifacts/AE-app-for-Linux-x86_64.tar.gz \
-            -C "$RUNNER_TEMP" EA-for-Linux
+          ./scripts/package-linux.sh "$RUNNER_TEMP/AEApp-for-Linux"
+          tar -czf preview-artifacts/aeapp-linux-x86_64.tar.gz \
+            -C "$RUNNER_TEMP" AEApp-for-Linux
 
       - name: Upload native binaries and local preview
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: AE-app-for-Linux-ubuntu24.04-x86_64
+          name: aeapp-ubuntu24.04-x86_64
           if-no-files-found: error
           path: |
-            preview-artifacts/AE-app-for-Linux-x86_64.tar.gz
+            preview-artifacts/aeapp-linux-x86_64.tar.gz
             preview-artifacts/library.png
+            preview-artifacts/downloads.png

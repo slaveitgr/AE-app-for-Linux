@@ -1,62 +1,31 @@
-# Contributing
+# Contributing to aeapp
 
-We welcome any kind of contributions with open arms. Whether it's a help with translation, reporting bugs or code contribution.
-
-Reporting bugs should be done via [GitHub issue tracker](https://github.com/ArmchairDevelopers/Maxima/issues)
-
-Translations are not hosted anywhere yet, please let us know if you wish to contribute by translating Maxima to a new language!
-
-When contributing code you should fork the repository and make any Pull Requests from there. More about [working with forks](https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/working-with-forks/)
+Report bugs and propose changes through the [project issue tracker](https://github.com/slaveitgr/AE-app-for-Linux/issues). Include the Linux distribution, graphics session, relevant error, and steps to reproduce. Remove account tokens and personal data from logs.
 
 ## Project structure
 
-Currently Maxima is split into crates that serve different purposes. Let's break them down
+- [aeapp-lib](aeapp-lib) provides account, library, downloads, cloud saves, and game-launch services.
+- [aeapp-ui](aeapp-ui) contains the native egui interface and `aeapp` binary.
+- [aeapp-cli](aeapp-cli) contains the command-line client.
+- [aeapp-tui](aeapp-tui) contains the terminal interface.
+- [aeapp-bootstrap](aeapp-bootstrap) handles game launching and browser callbacks.
+- [aeapp-service](aeapp-service) contains the Windows background service.
+- [aeapp-resources](aeapp-resources) contains shared build assets and metadata.
 
-- [maxima-lib](./maxima-lib) - main crate of maxima, all frontend crates link against it
-- [maxima-ui](./maxima-ui) - contains `egui` based frontend code (GUI application code)
-- [maxima-cli](./maxima-cli) - CLI frontend code
-- [maxima-tui](./maxima-tui) - TUI client built using `ratatui`
-- [maxima-bootstrap](./maxima-bootstrap) - separate utility used for handling `link2ea`, `origin`, `origin2` and `qrc` (for auth) protocols
-- [maxima-service](./maxima-service) - (Windows only) a background service for tasks requiring privilege elevation
-- [maxima-resources](./maxima-resources) - (Windows only) small crate exposing common assets and metadata
+## Development setup
 
-Available binary targets are:
+Install Rust through [rustup](https://rustup.rs/) and the Linux prerequisites in [README-LINUX.md](README-LINUX.md). The repository pins **Rust 1.93.0 stable** in `rust-toolchain.toml`; dependencies are recorded in `Cargo.lock`.
 
-- `maxima` (ui frontend)
-- `maxima-cli`
-- `maxima-tui`
-- `maxima-bootstrap`
-- `maxima-service` (Windows)
-
-## Development Setup
-
-As of now, Maxima requires a nightly build of rust toolchain, as it makes use of some unstable features of the language.
-
-We recommend setting up [rustup](https://rustup.rs/), it lets you install and manage multiple rust toolchains at the same time.
-
-Then install nightly build
 ```sh
-rustup toolchain install nightly
+cargo test --locked -p aeapp-lib --lib
+cargo test --locked -p aeapp-ui --bin aeapp
+cargo test --locked -p aeapp-bootstrap --bin aeapp-bootstrap
+cargo build --locked --release -p aeapp-ui -p aeapp-bootstrap -p aeapp-cli
+./target/release/aeapp --preview --preview-page downloads
 ```
 
-Afterwards build the crate(s) with cargo
-```sh
-cargo +nightly build
-```
+Keep the UI, bootstrap, and CLI binaries together when testing normal mode. The ignored live-account tests require explicit account access and may write cloud saves; leave them ignored in unattended checks. Use local previews and synthetic fixtures for UI tests.
 
-And/or run particular binary target
-> [!NOTE]
-> Some binary targets depend on others, always make sure to build whole project when running from source before reporting any bugs.
-> 
-```sh
-cargo +nightly run --bin maxima-cli
-``` 
+## Code and licensing
 
-## Code Style
-
-Please keep consistent code style throughout the project, as it makes it simpler to contribute and collaborate.
-
-Use `rustfmt` to automatically format the code to meet all the expectations
-```
-cargo +nightly fmt
-```
+Keep changes focused and use `cargo fmt` for Rust formatting. Add tests when they verify meaningful behavior or a regression. Preserve the GPL license and existing author/copyright notices; contributor attribution is recorded in [CREDITS](CREDITS.md).

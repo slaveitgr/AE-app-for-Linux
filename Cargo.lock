@@ -3613,13 +3613,13 @@ dependencies = [
 ]
 
 [[package]]
-name = "maxima-bootstrap"
+name = "aeapp-bootstrap"
 version = "0.1.0"
 dependencies = [
  "base64 0.21.7",
  "cacao",
- "maxima-lib",
- "maxima-resources",
+ "aeapp-lib",
+ "aeapp-resources",
  "querystring",
  "reqwest",
  "serde",
@@ -3634,7 +3634,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "maxima-cli"
+name = "aeapp-cli"
 version = "0.1.0"
 dependencies = [
  "anyhow",
@@ -3645,8 +3645,8 @@ dependencies = [
  "is_elevated",
  "lazy_static",
  "log",
- "maxima-lib",
- "maxima-resources",
+ "aeapp-lib",
+ "aeapp-resources",
  "regex",
  "serde",
  "serde_json",
@@ -3656,7 +3656,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "maxima-lib"
+name = "aeapp-lib"
 version = "1.0.0"
 dependencies = [
  "aes",
@@ -3727,14 +3727,14 @@ dependencies = [
 ]
 
 [[package]]
-name = "maxima-resources"
+name = "aeapp-resources"
 version = "0.1.0"
 dependencies = [
  "winres",
 ]
 
 [[package]]
-name = "maxima-service"
+name = "aeapp-service"
 version = "0.1.0"
 dependencies = [
  "actix-web",
@@ -3743,8 +3743,8 @@ dependencies = [
  "directories",
  "hex",
  "log",
- "maxima-lib",
- "maxima-resources",
+ "aeapp-lib",
+ "aeapp-resources",
  "paste",
  "regex",
  "reqwest",
@@ -3760,7 +3760,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "maxima-tui"
+name = "aeapp-tui"
 version = "0.1.0"
 dependencies = [
  "anyhow",
@@ -3772,8 +3772,8 @@ dependencies = [
  "is_elevated",
  "lazy_static",
  "log",
- "maxima-lib",
- "maxima-resources",
+ "aeapp-lib",
+ "aeapp-resources",
  "ratatui",
  "regex",
  "serde",
@@ -3785,7 +3785,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "maxima-ui"
+name = "aeapp-ui"
 version = "0.1.0"
 dependencies = [
  "anyhow",
@@ -3799,8 +3799,8 @@ dependencies = [
  "image 0.24.9",
  "is_elevated",
  "log",
- "maxima-lib",
- "maxima-resources",
+ "aeapp-lib",
+ "aeapp-resources",
  "puffin",
  "puffin_http",
  "reqwest",

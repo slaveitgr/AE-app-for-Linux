@@ -78,7 +78,7 @@ def read_fonts(bundle):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('ea_desktop', type=Path, help='Directory containing quantum.rcc, or quantum.rcc itself')
-    parser.add_argument('output', type=Path, help='Destination ea-assets directory beside maxima')
+    parser.add_argument('output', type=Path, help='Destination ea-assets directory beside aeapp')
     args = parser.parse_args()
     bundle = args.ea_desktop / 'quantum.rcc' if args.ea_desktop.is_dir() else args.ea_desktop
     fonts = read_fonts(bundle)
