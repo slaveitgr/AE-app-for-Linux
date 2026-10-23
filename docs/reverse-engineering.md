@@ -85,3 +85,10 @@ No live EA login, real game download, cloud-save write or real game launch was p
 ## Windows game-hub follow-up
 
 The additional Windows screenshots guided the native Overview/Currency/Add-ons tab row, portrait game card, action placement, metadata column and background composition. The game actions reuse the existing download, launch, stop and settings handlers. Owned add-ons come from the account library; missing currency offers, achievements, release dates and age ratings remain explicitly unavailable. No screenshot account statistics or prices were copied as application data. The local Jedi preview now selects the official digital portrait pack art; a physical multi-platform cases image was rejected after visual inspection.
+
+
+## Windows download options and membership badge follow-up
+
+Screenshots 187–189 show a centered 600×484 Download options panel, 48px game thumbnail, install-path Change control, 40px language field, two install options, lower-left size/calculation status, and lower-right Next/Cancel controls. The native dialog follows this layout using Linux paths. Size comes from the guarded PCWIN archive central directory and free space from the destination filesystem; estimates use the full uncompressed archive, so resumed installs may be overestimated. Proton/runtime overhead is not included. Unsupported shortcut and automatic-update options remain disabled; the installer currently uses English. No real EA archive was fetched in verification. Local preview sizes are labeled demonstration fixtures through the Demo player account.
+
+The user also requested the small white/red EA Play pill under the profile name. Its native rendering uses the locally imported EA medallion and text. The existing GetInitUserData query supplies subscription status; active subscriptions enable the badge, while unavailable or expired state does not. The response parser is tested offline. Live account membership has not been verified.

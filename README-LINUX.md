@@ -192,3 +192,10 @@ python3 scripts/import-ea-catalog.py /path/to/local/ea-assets/catalog
 ## Game Hub των Windows
 
 Η οθόνη παιχνιδιού ακολουθεί τα Windows screenshots με Overview, Currency και Add-ons, εξώφυλλο, κάρτα παιχνιδιού και Download/Play/Stop. Το μενού παιχνιδιού διατηρεί Proton settings και άνοιγμα φακέλου. Τα add-ons χρησιμοποιούν την πραγματική βιβλιοθήκη, ενώ στοιχεία που δεν φορτώθηκαν δεν εμφανίζονται ως εικονικά στατιστικά, ημερομηνίες ή τιμές. Για τοπικό έλεγχο: `--preview --preview-page game --preview-game-tab 0` (ή 1/2).
+
+
+### Windows download options and account badge
+
+The 600×484 download dialog follows the Windows app, with an editable Linux game folder, English installer language, disk-space calculation, insufficient-space state, and the existing Locate installed game action. Next requires a verified Windows build and enough free space for the full uncompressed archive; this is checked again before queuing. The estimate is conservative for resumed installs and excludes extra Proton/runtime space. Desktop shortcut creation and automatic game updates remain visibly unavailable. Preflight runs independently of active downloads.
+
+The EA Play badge appears below the account name when the existing EA subscription query reports an active subscription. Unknown, failed, and expired membership results do not grant a badge. Local previews use an explicitly sample badge. Preview the dialog with `--preview --preview-page install --preview-install-state ready` (also `calculating`, `insufficient`, or `error`).

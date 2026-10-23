@@ -125,6 +125,7 @@ define_graphql_request!(ServiceAggregationLayer, GetBasicPlayer, playerByPd); //
 define_graphql_request!(ServiceAggregationLayer, getPreloadedOwnedGames, me); // Input: ServiceGetPreloadedOwnedGamesRequest, Output: ServiceUser (with owned_game_products field set)
 define_graphql_request!(ServiceAggregationLayer, GetUserPlayer, me); // Input: ServiceGetUserPlayerRequest, Output: ServiceUser
 define_graphql_request!(ServiceAggregationLayer, GameSystemRequirements, game); // Input: ServiceGameSystemRequirementsRequest, Output: ServiceGameSystemRequirements
+define_graphql_request!(ServiceAggregationLayer, GetInitUserData, me);
 define_graphql_request!(ServiceAggregationLayer, GetMyFriends, me); // Input: ServiceGetMyFriendsRequest, Output: ServiceFriends
 define_graphql_request!(ServiceAggregationLayer, SearchPlayer, players); // Input: ServiceSearchPlayerRequest, Output: ServicePlayersPage
 define_graphql_request!(ServiceAggregationLayer, getLegacyCatalogDefs, legacyOffers); // Input: ServiceGetLegacyCatalogDefsRequest, Output: Vec<ServiceLegacyOffer>

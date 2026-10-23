@@ -806,7 +806,11 @@ pub fn ea_play(app: &mut AeAppEguiApp, ui: &mut Ui) {
             text(
                 ui,
                 account.min + vec2(72.0, 40.0),
-                "Membership status is not loaded",
+                if app.is_preview() {
+                    "Sample membership · local preview"
+                } else {
+                    app.membership.description()
+                },
                 FontId::proportional(14.0),
                 COPY,
                 account_width - 108.0,

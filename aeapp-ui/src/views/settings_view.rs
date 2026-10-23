@@ -320,9 +320,15 @@ fn account(app: &AeAppEguiApp, ui: &mut Ui) {
         Color32::from_rgb(255, 71, 76),
         120.0,
     );
-    ui.interact(logo, ui.id().with("membership_status"), Sense::hover()).on_hover_text(
-        "Membership details are not loaded. Manage opens your EA account in the browser.",
-    );
+    ui.interact(logo, ui.id().with("membership_status"), Sense::hover())
+        .on_hover_text(format!(
+            "{}. Manage opens your EA account in the browser.",
+            if app.is_preview() {
+                "Sample membership badge · local preview"
+            } else {
+                app.membership.description()
+            }
+        ));
     manage(ui, origin, 333.0, width, app.is_preview());
     divider(ui, origin, 433.0, width);
 

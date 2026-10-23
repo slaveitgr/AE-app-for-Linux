@@ -97,6 +97,9 @@ is_elevated = "0.1.2"
 widestring = "1.0.2"
 wmi = "0.13.1"
 
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
 [target.'cfg(target_os = "macos")'.dependencies]
 smbios-lib = "0.9.1"
 

@@ -14,6 +14,7 @@ use crate::core::{
 };
 
 pub mod downloader;
+pub mod install;
 pub mod manager;
 pub mod zip;
 pub mod zlib;

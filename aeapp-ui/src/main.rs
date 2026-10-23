@@ -28,7 +28,7 @@ use egui_extras::{Size, StripBuilder};
 use egui_glow::glow;
 
 use app_bg_renderer::AppBgRenderer;
-use bridge_thread::{BackendError, BridgeThread, InteractThreadLocateGameResponse};
+use bridge_thread::{BackendError, BridgeThread};
 use game_view_bg_renderer::GameViewBgRenderer;
 use renderers::{app_bg_renderer, game_view_bg_renderer};
 use translation_manager::{positional_replace, TranslationManager};
@@ -41,9 +41,11 @@ pub mod widgets;
 mod bridge_processor;
 mod bridge_thread;
 mod desktop;
+mod download_options;
 mod enum_locale_map;
 mod event_processor;
 mod event_thread;
+mod membership;
 mod preview;
 mod renderers;
 mod shell;
@@ -69,7 +71,7 @@ struct Args {
     #[arg(long, value_name = "PNG_PATH")]
     screenshot: Option<PathBuf>,
     /// Initial local preview screen.
-    #[arg(long, default_value = "library", value_parser = ["library", "home", "settings", "game", "proton", "downloads", "profile", "browse", "ea-play"])]
+    #[arg(long, default_value = "library", value_parser = ["library", "home", "settings", "game", "proton", "downloads", "profile", "browse", "ea-play", "install"])]
     preview_page: String,
     /// Local screenshot viewport, e.g. 1920x1032 (preview only).
     #[arg(long)]
@@ -80,6 +82,9 @@ struct Args {
     /// Initial Game Hub tab in local preview (Overview/Currency/Add-ons).
     #[arg(long, default_value_t = 0, value_parser = clap::value_parser!(u8).range(0..=2))]
     preview_game_tab: u8,
+    /// Download options preview state (local fixtures only).
+    #[arg(long, default_value = "ready", value_parser = ["ready", "calculating", "insufficient", "error"])]
+    preview_install_state: String,
     #[arg(short, long)]
     allow_bf3: bool,
 }
@@ -305,25 +310,7 @@ pub enum BackendStallState {
     BingChilling,
 }
 
-pub struct InstallModalState {
-    locate_path: String,
-    install_folder: String,
-    locating: bool,
-    locate_response: Option<InteractThreadLocateGameResponse>,
-    should_close: bool,
-}
-
-impl InstallModalState {
-    pub fn new(settings: &FrontendSettings) -> Self {
-        Self {
-            locate_path: String::new(),
-            install_folder: settings.default_install_folder.clone(),
-            locating: false,
-            locate_response: None,
-            should_close: false,
-        }
-    }
-}
+pub use download_options::InstallModalState;
 
 pub struct AeAppEguiApp {
     /// extra not-already-handled commandline args
@@ -338,6 +325,7 @@ pub struct AeAppEguiApp {
     user_name: String,
     /// Logged in user's ID
     user_id: String,
+    membership: membership::Membership,
     /// games
     games: HashMap<String, GameInfo>,
     /// selected game
@@ -612,6 +600,11 @@ impl AeAppEguiApp {
             }
         }
 
+        let mut installer_state = InstallModalState::new(&settings);
+        if is_preview && preview_page == "install" {
+            installer_state = InstallModalState::for_game(&settings, "star-wars-jedi-survivor");
+            installer_state.seed_preview(&args.preview_install_state);
+        }
         Self {
             args,
             debug,
@@ -629,12 +622,19 @@ impl AeAppEguiApp {
             },
             user_name: if is_preview { "Demo player" } else { "Player" }.to_owned(),
             user_id: String::new(),
+            membership: if is_preview {
+                membership::Membership::EaPlay
+            } else {
+                membership::Membership::Unknown
+            },
             games: if is_preview {
                 preview::games()
             } else {
                 HashMap::new()
             },
-            game_sel: if is_preview && matches!(preview_page.as_str(), "game" | "proton") {
+            game_sel: if is_preview
+                && matches!(preview_page.as_str(), "game" | "proton" | "install")
+            {
                 "star-wars-jedi-survivor".to_owned()
             } else {
                 String::new()
@@ -662,6 +662,10 @@ impl AeAppEguiApp {
                 Some(PopupModal::GameSettings(
                     "star-wars-jedi-survivor".to_owned(),
                 ))
+            } else if is_preview && preview_page == "install" {
+                Some(PopupModal::GameInstall(
+                    "star-wars-jedi-survivor".to_owned(),
+                ))
             } else {
                 None
             },
@@ -685,9 +689,10 @@ impl AeAppEguiApp {
                 total_bytes: 2_048_000_000,
             }),
             install_queue: preview_queue,
-            installer_state: InstallModalState::new(&settings),
+            installer_state,
             settings,
-            library_details: is_preview && matches!(preview_page.as_str(), "game" | "proton"),
+            library_details: is_preview
+                && matches!(preview_page.as_str(), "game" | "proton" | "install"),
             installed_only: false,
             rendered_frames: 0,
             screenshot_requested: false,
@@ -821,8 +826,9 @@ macro_rules! set_app_modal {
                             .insert(slug.clone(), crate::GameSettings::new());
                     }
                 }
-                PopupModal::GameInstall(_) => {
-                    $arg1.installer_state = crate::InstallModalState::new(&$arg1.settings);
+                PopupModal::GameInstall(slug) => {
+                    $arg1.installer_state =
+                        crate::InstallModalState::for_game(&$arg1.settings, &slug);
                 }
                 PopupModal::GameLaunchOOD(_) => {}
             }
@@ -924,6 +930,10 @@ impl AeAppEguiApp {
 
     fn main(&mut self, app_rect: Rect, ui: &mut Ui) {
         ui.add_enabled_ui(self.modal.is_none(), |ui| shell::show(self, ui));
+        if let Some(PopupModal::GameInstall(slug)) = self.modal.clone() {
+            download_options::show(self, ui.ctx(), &slug);
+            return;
+        }
         let mut clear = false;
         if let Some(modal) = &self.modal {
             egui::Window::new("Manage game")
@@ -997,113 +1007,7 @@ impl AeAppEguiApp {
                                     ui.label(&self.locale.localization.modals.game_settings.not_installed);
                                 }
                             },
-                            PopupModal::GameInstall(slug) => 'outer: {
-                                let game = if let Some(game) = self.games.get_mut(slug) { game } else { break 'outer; };
-                                ui.horizontal(|header| {
-                                    header.heading(positional_replace!(self.locale.localization.modals.game_install.header, "game", &game.name));
-                                    header.with_layout(Layout::right_to_left(egui::Align::Center), |close_button| {
-                                        close_button.add_enabled_ui(!self.installer_state.locating, |close_button| {
-                                            if close_button.add_sized(vec2(80.0, 30.0), egui::Button::new(&self.locale.localization.modals.close.to_ascii_uppercase())).clicked() {
-                                                clear = true
-                                            }
-                                        });
-                                    });
-                                });
-
-                                ui.separator();
-
-                                if !self.args.allow_bf3 && (slug.eq("battlefield-3") || slug.eq("battlefield-4")) {
-                                    ui.heading("Battlefield 3 and 4 are currently unsupported due to how battlelog complicates game launching. This is on our radar, but isn't a huge priority at the moment.");
-                                    break 'outer;
-                                }
-
-                                let button_size = vec2(100.0, 30.0);
-
-                                ui.label(&self.locale.localization.modals.game_install.locate_installed);
-                                if let Some(resp) = &self.installer_state.locate_response {
-                                    match resp {
-                                        InteractThreadLocateGameResponse::Success => {
-                                            self.installer_state.should_close = true;
-                                            game.installed = true;
-                                        },
-                                        InteractThreadLocateGameResponse::Error(err) => {
-                                            ui.spacing_mut().item_spacing.x = 0.0;
-
-                                            egui::Label::new(egui::RichText::new(&self.locale.localization.modals.game_install.locate_failed).color(Color32::RED)).ui(ui);
-                                            ui.horizontal_wrapped(|ui| {
-                                                ui.label("Please report this on ");
-                                                ui.hyperlink_to("GitHub Issues", "https://github.com/slaveitgr/AE-app-for-Linux/issues/new");
-                                                ui.label(".");
-                                            });
-                                            ui.label("Make sure to specify:");
-                                            ui.horizontal_wrapped(|ui| {
-                                                egui::Label::new("• You were locating ").selectable(false).ui(ui);
-                                                egui::Label::new(egui::RichText::new(format!("{}", game.name)).color(Color32::WHITE)).ui(ui);
-                                            });
-                                            ui.horizontal_wrapped(|ui| {
-                                                egui::Label::new("• ").selectable(false).ui(ui);
-                                                egui::Label::new(egui::RichText::new(format!("{}", err.reason)).color(Color32::WHITE)).ui(ui);
-                                            });
-                                            ui.horizontal_wrapped(|ui| {
-                                                egui::Label::new("And attach ").selectable(false).ui(ui);
-                                                egui::Label::new(egui::RichText::new(&err.xml_path).color(Color32::WHITE)).ui(ui);
-                                            });
-                                        }
-                                    }
-                                } else if self.installer_state.locating {
-                                    ui.heading(&self.locale.localization.modals.game_install.locate_in_progress);
-                                } else {
-                                    ui.horizontal(|ui| {
-                                        let size = vec2(400.0 - (24.0 + ui.style().spacing.item_spacing.x*2.0), 30.0);
-                                        ui.add_sized(size, egui::TextEdit::singleline(&mut self.installer_state.locate_path).vertical_align(egui::Align::Center));
-                                        ui.add_enabled(false, egui::Button::new("Browse · soon"));
-                                        ui.add_enabled_ui(PathBuf::from(&self.installer_state.locate_path).exists(), |ui| {
-
-                                            if ui.add_sized(button_size, egui::Button::new(&self.locale.localization.modals.game_install.locate_action.to_ascii_uppercase())).clicked() {
-                                                self.backend.backend_commander.send(bridge_thread::AeAppLibRequest::LocateGameRequest(self.installer_state.locate_path.clone())).unwrap();
-                                                self.installer_state.locating = true;
-                                            }
-                                        });
-                                    });
-                                }
-                                ui.label("");
-                                ui.label(&self.locale.localization.modals.game_install.fresh_download);
-                                ui.add_enabled_ui(!self.installer_state.locating, |ui| {
-                                    let size = vec2(500.0 - (24.0 + ui.style().spacing.item_spacing.x*2.0), 30.0);
-                                    ui.horizontal(|ui| {
-                                        ui.style_mut().visuals.widgets.hovered.bg_stroke = Stroke::new(2.0, F9B233);
-                                        ui.style_mut().visuals.widgets.hovered.expansion = -2.0;
-                                        ui.style_mut().visuals.widgets.hovered.rounding = Rounding::same(2.0);
-                                        ui.add_sized(size, egui::TextEdit::singleline(&mut self.installer_state.install_folder).vertical_align(egui::Align::Center));
-                                    });
-                                    let path = PathBuf::from(self.installer_state.install_folder.clone());
-                                    let valid = path.exists();
-                                    ui.add_enabled_ui(valid, |ui| {
-                                        if ui.add_sized(button_size, egui::Button::new(&self.locale.localization.modals.game_install.fresh_action)).clicked() {
-                                            if self.installing_now.is_none() {
-                                                self.installing_now = Some(QueuedDownload { slug: game.slug.clone(), offer: game.offer.clone(), downloaded_bytes: 0, total_bytes: 0 });
-                                            } else {
-                                                self.install_queue.insert(game.offer.clone(),QueuedDownload { slug: game.slug.clone(), offer: game.offer.clone(), downloaded_bytes: 0, total_bytes: 0 });
-                                            }
-                                            self.backend.backend_commander.send(bridge_thread::AeAppLibRequest::InstallGameRequest(game.offer.clone(), path.join(slug))).unwrap();
-
-                                            clear = true;
-                                        }
-                                    });
-                                    if !self.installer_state.install_folder.is_empty() {
-                                        ui.horizontal_wrapped(|folder_hint| {
-                                            egui::Label::new(&self.locale.localization.modals.game_install.fresh_path_confirmation).selectable(false).ui(folder_hint);
-                                            egui::Label::new(egui::RichText::new(format!("{}",
-                                                path.join(slug).display())).color(Color32::WHITE)).selectable(false).ui(folder_hint);
-                                        });
-                                        if !valid {
-                                            egui::Label::new(egui::RichText::new(&self.locale.localization.modals.game_install.fresh_path_invalid).color(Color32::RED)).ui(ui);
-                                        }
-                                    }
-                                });
-
-                                if self.installer_state.should_close { clear = true; }
-                            }
+                            PopupModal::GameInstall(_) => {}
                             PopupModal::GameLaunchOOD(slug) => 'outer: {
                                 let game = if let Some(game) = self.games.get_mut(slug) { game } else { break 'outer; };
                                 ui.horizontal(|header| {

@@ -567,19 +567,46 @@ fn social(app: &mut AeAppEguiApp, ui: &mut Ui) {
             bold(14.0),
             TEXT,
         );
-        ui.painter().text(
-            all.min + vec2(72.0, 45.0),
-            Align2::LEFT_TOP,
-            if app.is_preview() {
-                "Local preview"
-            } else if app.backend_state == BackendStallState::BingChilling {
-                "Online"
+        if app.membership == crate::membership::Membership::EaPlay {
+            let badge = Rect::from_min_size(all.min + vec2(72.0, 44.0), vec2(56.0, 16.0));
+            ui.painter().rect_filled(badge, 8.0, Color32::WHITE);
+            let red = Color32::from_rgb(255, 71, 76);
+            let icon = Rect::from_min_size(badge.min + vec2(3.0, 1.0), vec2(14.0, 14.0));
+            if !original_icon(ui, icon, "EA_PLAY_MEDALLION", red) {
+                ui.painter().text(icon.center(), Align2::CENTER_CENTER, "EA", bold(8.0), red);
+            }
+            ui.painter().text(
+                badge.min + vec2(18.0, 2.0),
+                Align2::LEFT_TOP,
+                "Play",
+                bold(11.0),
+                red,
+            );
+            ui.interact(
+                badge,
+                ui.id().with("ea-play-membership-badge"),
+                egui::Sense::hover(),
+            )
+            .on_hover_text(if app.is_preview() {
+                "Sample EA Play badge · local preview"
             } else {
-                "Not connected"
-            },
-            FontId::proportional(11.0),
-            MUTED,
-        );
+                "EA Play membership active"
+            });
+        } else {
+            ui.painter().text(
+                all.min + vec2(72.0, 45.0),
+                Align2::LEFT_TOP,
+                if app.is_preview() {
+                    "Local preview"
+                } else if app.backend_state == BackendStallState::BingChilling {
+                    "Online"
+                } else {
+                    "Not connected"
+                },
+                FontId::proportional(11.0),
+                MUTED,
+            );
+        }
         original_icon(
             ui,
             Rect::from_min_size(all.min + vec2(all.width() - 28.0, 34.0), vec2(16.0, 16.0)),

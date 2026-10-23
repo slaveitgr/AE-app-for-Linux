@@ -131,3 +131,10 @@ The source is distributed under **GPL-3.0**; see [LICENSE](LICENSE) and [CREDITS
 ## Original-client investigation
 
 The supplied Windows/macOS reference clients and the [public EA catalog](https://store.ea.com/commerce/app/products/need-for-speed-payback) were statically inspected. See the [evidence and compatibility gap report](docs/reverse-engineering.md). The main original desktop SPA was not recovered; the public catalog is a separate server-rendered frontend. This implementation does not yet provide verified 100% original-client parity. Optional four-font typography and known static navigation icons can be imported locally with `scripts/import-ea-fonts.py`; original EA binaries/resources and imported artwork are not committed.
+
+
+### Windows download options and account badge
+
+The 600×484 download dialog follows the Windows app, with an editable Linux game folder, English installer language, disk-space calculation, insufficient-space state, and the existing Locate installed game action. Next requires a verified Windows build and enough free space for the full uncompressed archive; this is checked again before queuing. The estimate is conservative for resumed installs and excludes extra Proton/runtime space. Desktop shortcut creation and automatic game updates remain visibly unavailable. Preflight runs independently of active downloads.
+
+The EA Play badge appears below the account name when the existing EA subscription query reports an active subscription. Unknown, failed, and expired membership results do not grant a badge. Local previews use an explicitly sample badge. Preview the dialog with `--preview --preview-page install --preview-install-state ready` (also `calculating`, `insufficient`, or `error`).

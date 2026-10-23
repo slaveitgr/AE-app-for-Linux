@@ -370,6 +370,7 @@ dependencies = [
  "http",
  "is_elevated",
  "lazy_static",
+ "libc",
  "log",
  "mac_address",
  "md5",

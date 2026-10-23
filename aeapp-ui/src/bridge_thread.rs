@@ -84,6 +84,8 @@ pub enum AeAppLibRequest {
     LoginRequestOauth,
     GetGamesRequest,
     GetFriendsRequest,
+    GetMembershipRequest,
+    PrepareInstallRequest(u64, String, PathBuf),
     GetGameDetailsRequest(String),
     StartGameRequest(GameInfo, Option<GameSettings>),
     StopGameRequest(String),
@@ -103,6 +105,12 @@ pub enum AeAppLibResponse {
     LibraryReset,
     GameInfoResponse(InteractThreadGameListResponse),
     FriendInfoResponse(InteractThreadFriendListResponse),
+    MembershipResponse(crate::membership::Membership),
+    InstallPreparationResponse(
+        u64,
+        PathBuf,
+        Result<aeapp::content::install::InstallSpace, String>,
+    ),
     GameDetailsResponse(InteractThreadGameDetailsResponse),
     LocateGameResponse(InteractThreadLocateGameResponse),
     // Alerts, rather than responses:
@@ -171,6 +179,8 @@ pub enum BackendError {
     LoggedOut,
     #[error("no downloadable live build is available for {0}")]
     NoLiveBuild(String),
+    #[error("{0}")]
+    InstallPreparation(String),
 }
 
 impl BridgeThread {
@@ -460,6 +470,49 @@ impl BridgeThread {
                     async move { get_friends_request(aeapp, channel, channel1, &context).await }
                         .await
                 }
+                AeAppLibRequest::GetMembershipRequest => {
+                    let app = aeapp_arc.clone();
+                    let channel = backend_responder.clone();
+                    let context = ctx.clone();
+                    tokio::spawn(async move {
+                        let membership = tokio::time::timeout(
+                            Duration::from_secs(30),
+                            crate::membership::load(app),
+                        )
+                        .await
+                        .ok()
+                        .and_then(Result::ok)
+                        .unwrap_or(crate::membership::Membership::Unknown);
+                        let _ = channel.send(AeAppLibResponse::MembershipResponse(membership));
+                        context.request_repaint();
+                    });
+                    Ok(())
+                }
+                AeAppLibRequest::PrepareInstallRequest(id, offer, path) => {
+                    let auth = aeapp_arc.lock().await.auth_storage().clone();
+                    let channel = backend_responder.clone();
+                    let context = ctx.clone();
+                    tokio::spawn(async move {
+                        let service = aeapp::content::ContentService::new(auth);
+                        let result = tokio::time::timeout(
+                            Duration::from_secs(60),
+                            aeapp::content::install::prepare_install(
+                                &service,
+                                &offer,
+                                path.clone(),
+                            ),
+                        )
+                        .await
+                        .unwrap_or_else(|_| {
+                            Err("Disk-space calculation timed out. Try again.".into())
+                        });
+                        let _ = channel.send(AeAppLibResponse::InstallPreparationResponse(
+                            id, path, result,
+                        ));
+                        context.request_repaint();
+                    });
+                    Ok(())
+                }
                 AeAppLibRequest::GetGameDetailsRequest(slug) => {
                     let channel = backend_responder.clone();
                     let aeapp = aeapp_arc.clone();
@@ -514,23 +567,52 @@ impl BridgeThread {
                     Ok(())
                 }
                 AeAppLibRequest::InstallGameRequest(offer, path) => {
-                    let result = async {
-                        let mut aeapp = aeapp_arc.lock().await;
-                        let build =
-                            aeapp.content_manager().service().windows_live_build(&offer).await?;
-                        let game = QueuedGameBuilder::default()
-                            .offer_id(offer)
-                            .build_id(build.build_id().to_owned())
-                            .path(path)
-                            .build()?;
-                        aeapp.content_manager().add_install(game).await?;
-                        Ok::<(), BackendError>(())
-                    }
-                    .await;
-                    let mut aeapp = aeapp_arc.lock().await;
-                    Self::update_queue(aeapp.content_manager(), backend_responder.clone());
-                    ctx.request_repaint();
-                    result
+                    let app = aeapp_arc.clone();
+                    let channel = backend_responder.clone();
+                    let context = ctx.clone();
+                    tokio::spawn(async move {
+                        let result = async {
+                            let auth = app.lock().await.auth_storage().clone();
+                            let service = aeapp::content::ContentService::new(auth);
+                            let space = tokio::time::timeout(
+                                Duration::from_secs(60),
+                                aeapp::content::install::prepare_install(
+                                    &service,
+                                    &offer,
+                                    path.clone(),
+                                ),
+                            )
+                            .await
+                            .map_err(|_| {
+                                BackendError::InstallPreparation(
+                                    "Disk-space calculation timed out. Try again.".into(),
+                                )
+                            })?
+                            .map_err(BackendError::InstallPreparation)?;
+                            if space.available < space.required {
+                                return Err(BackendError::InstallPreparation(
+                                    "There is not enough disk space in the selected game folder."
+                                        .into(),
+                                ));
+                            }
+                            let mut aeapp = app.lock().await;
+                            let game = QueuedGameBuilder::default()
+                                .offer_id(offer)
+                                .build_id(space.build_id)
+                                .path(path)
+                                .build()?;
+                            aeapp.content_manager().add_install(game).await?;
+                            Ok::<(), BackendError>(())
+                        }
+                        .await;
+                        let mut aeapp = app.lock().await;
+                        Self::update_queue(aeapp.content_manager(), channel.clone());
+                        if let Err(error) = result {
+                            let _ = channel.send(AeAppLibResponse::NonFatalError(Box::new(error)));
+                        }
+                        context.request_repaint();
+                    });
+                    Ok(())
                 }
                 AeAppLibRequest::ControlDownload(action) => {
                     let mut aeapp = aeapp_arc.lock().await;

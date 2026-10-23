@@ -34,6 +34,11 @@ pub fn frontend_processor(app: &mut AeAppEguiApp, ctx: &egui::Context) {
                         app.user_name = res.you.display_name().clone();
                         app.user_id = res.you.id().clone();
                         app.backend_state = BackendStallState::BingChilling;
+                        app.membership = crate::membership::Membership::Unknown;
+                        let _ = app
+                            .backend
+                            .backend_commander
+                            .send(bridge_thread::AeAppLibRequest::GetMembershipRequest);
                         app.backend
                             .backend_commander
                             .send(bridge_thread::AeAppLibRequest::GetGamesRequest)
@@ -74,6 +79,10 @@ pub fn frontend_processor(app: &mut AeAppEguiApp, ctx: &egui::Context) {
                         }
                     }
                     FriendInfoResponse(res) => app.friends.push(res.friend),
+                    MembershipResponse(membership) => app.membership = membership,
+                    InstallPreparationResponse(id, path, result) => {
+                        app.installer_state.apply_result(id, path, result)
+                    }
                     CriticalError(err) => app.critical_error = Some(*err),
                     NonFatalError(err) => app.nonfatal_errors.push(*err),
                     ActiveGameChanged(slug) => app.playing_game = slug,
