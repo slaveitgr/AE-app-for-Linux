@@ -12,13 +12,18 @@ use crate::{
 };
 
 pub async fn handle_settings_request(
-    _: LockedConnectionState,
+    state: LockedConnectionState,
     request: LSXGetSetting,
 ) -> Result<Option<LSXResponseType>, LSXRequestError> {
     let setting = match request.attr_SettingId {
         AeAppSetting::IsIgoEnabled => "false".to_string(),
         AeAppSetting::IsIgoAvailable => "false".to_string(),
         AeAppSetting::Environment => "production".to_string(),
+        AeAppSetting::Language => {
+            let mut connection = state.write().await;
+            let app = connection.aeapp().await;
+            app.locale().full_str().to_owned()
+        }
     };
 
     make_lsx_handler_response!(Response, GetSettingResponse, { attr_Setting: setting })

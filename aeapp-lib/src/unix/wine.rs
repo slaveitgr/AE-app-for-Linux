@@ -509,6 +509,13 @@ pub async fn setup_wine_registry_with_options(
                 ("ClientPath", "C:/Windows/System32/conhost.exe"),
             ],
         ),
+        // Origin SDK discovers the client through HKLM\SOFTWARE\Origin's
+        // 32-bit registry view, outside the older Electronic Arts branch.
+        // Without this key, some games exit before connecting to native LSX.
+        (
+            "HKEY_LOCAL_MACHINE\\Software\\Wow6432Node\\Origin",
+            &[("ClientPath", "C:/Windows/System32/conhost.exe")],
+        ),
     ];
 
     for (key, values) in entries.into_iter() {

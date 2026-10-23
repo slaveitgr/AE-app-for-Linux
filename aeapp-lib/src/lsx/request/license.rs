@@ -1,5 +1,5 @@
 use log::{debug, info};
-use std::env;
+use std::{env, path::PathBuf};
 
 use crate::{
     core::{auth::hardware::HardwareInfo, launch::LaunchMode},
@@ -9,7 +9,7 @@ use crate::{
         types::{LSXRequestLicense, LSXRequestLicenseResponse, LSXResponseType},
     },
     make_lsx_handler_response,
-    ooa::{request_license, LicenseAuth},
+    ooa::{detect_ooa_version, request_license, LicenseAuth},
 };
 
 pub async fn handle_license_request(
@@ -27,6 +27,7 @@ pub async fn handle_license_request(
 
     let playing = aeapp.playing().as_ref().unwrap();
     let content_id = playing.content_id().to_owned();
+    let game_path = PathBuf::from(playing.game_path());
     let mode = playing.mode();
 
     let auth = match mode {
@@ -39,8 +40,10 @@ pub async fn handle_license_request(
         }
     };
 
-    // TODO: how to get version
-    let hw_info = HardwareInfo::new(2);
+    // Bind the runtime token to the same hardware identity as the game's
+    // initial OOA license; newer Activation DLLs use a different hash format.
+    let version = detect_ooa_version(game_path).await.unwrap_or(1);
+    let hw_info = HardwareInfo::new(version);
     let license = request_license(
         &content_id,
         &hw_info.generate_hardware_hash(),

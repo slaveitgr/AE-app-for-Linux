@@ -7,4 +7,5 @@ pub enum AeAppSetting {
     IsIgoEnabled,
     IsIgoAvailable,
     Environment,
+    Language,
 }

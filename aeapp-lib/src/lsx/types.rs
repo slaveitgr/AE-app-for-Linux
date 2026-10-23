@@ -237,6 +237,8 @@ pub enum LSXGameInfoId {
     Languages,
     #[serde(rename = "INSTALLED_LANGUAGE")]
     InstalledLanguage,
+    #[serde(rename = "FULLGAME_PURCHASED")]
+    FullGamePurchased,
 }
 
 lsx_message! {

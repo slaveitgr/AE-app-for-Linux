@@ -148,3 +148,9 @@ Managed GE-Proton selection accepts current CPU-specific archive names, prefers 
 ### Legacy DirectX installer compatibility
 
 The managed Wine prefix gives `DXSETUP.exe` an application-specific empty `mscoree` override. This prevents the obsolete Managed DirectX/.NET probe from aborting the native redistributable installer on Proton. Normal manifest install arguments, native DirectX and bundled Visual C++ setup, game registration, and exit-code validation remain in use. Games and other installers retain their CLR configuration; no global DLL override is added. On GE-Proton11-11, an isolated Payback installer reproduced DXSETUP `-9`, then completed DirectX and all bundled VC redistributables with Touchup exit 0 after the scoped fix. This does not verify game launch or DRM.
+
+### Native Payback launch
+
+Prefix setup also writes the 32-bit `HKLM\Software\Wow6432Node\Origin\ClientPath` discovery key used by the Origin SDK. Runtime license requests detect the game's Activation DLL version, matching the initial license hardware identity. LSX supports the observed `LANGUAGE` and `FULLGAME_PURCHASED` requests; full access requires an active, non-trial entitlement, including EA Play/Game Pass vault access.
+
+On 23 October 2026, the user confirmed normal Need for Speed Payback gameplay through the native backend, the managed GE-Proton11-11 runtime, and an active EA Play/Game Pass entitlement. This verifies that installation/launch case on the tested machine. Use one native backend on the normal LSX port 3216: Payback's second SDK connection does not follow the diagnostic port override.

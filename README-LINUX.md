@@ -209,3 +209,9 @@ The EA Play badge appears below the account name when the existing EA subscripti
 ### Παλιός installer DirectX σε Proton
 
 Το managed Wine prefix εφαρμόζει κενό override `mscoree` μόνο στο `DXSETUP.exe`, ώστε ο παλιός έλεγχος Managed DirectX/.NET να μη σταματά την εγκατάσταση των native βιβλιοθηκών. Παραμένουν οι κανονικές παράμετροι του manifest, το DirectX, οι bundled Visual C++ installers, η εγγραφή του παιχνιδιού και ο έλεγχος exit code. Δεν προστίθεται global DLL override. Σε απομονωμένο prefix με GE-Proton11-11 αναπαράχθηκε το DXSETUP `-9` του Payback και μετά τη διόρθωση ολοκληρώθηκαν DirectX, όλα τα bundled VC redistributables και Touchup με exit 0. Η εκκίνηση του παιχνιδιού/DRM δεν έχει ακόμη επαληθευτεί.
+
+### Native εκκίνηση Payback
+
+Η προετοιμασία του prefix προσθέτει και το 32-bit `HKLM\Software\Wow6432Node\Origin\ClientPath`, από όπου το Origin SDK εντοπίζει τον launcher. Τα runtime license requests εντοπίζουν την έκδοση του Activation DLL και χρησιμοποιούν την ίδια ταυτότητα hardware με την αρχική άδεια. Υποστηρίζονται τα αιτήματα LSX `LANGUAGE` και `FULLGAME_PURCHASED`. Η πλήρης πρόσβαση προκύπτει από ενεργό δικαίωμα χωρίς trial, συμπεριλαμβανομένου του EA Play/Game Pass.
+
+Στις 23/10/2026 ο χρήστης επιβεβαίωσε ότι το Need for Speed Payback έπαιξε κανονικά μέσω native backend, managed GE-Proton11-11 και ενεργού EA Play/Game Pass. Ο έλεγχος αφορά τη συγκεκριμένη εγκατάσταση και τον δοκιμασμένο υπολογιστή. Χρησιμοποιείται ένας native backend στην κανονική θύρα LSX 3216: η δεύτερη σύνδεση SDK του Payback δεν ακολουθεί τη διαγνωστική παράκαμψη θύρας.
