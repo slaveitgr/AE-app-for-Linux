@@ -77,6 +77,9 @@ struct Args {
     /// Initial settings tab in local preview (0 through 5).
     #[arg(long, default_value_t = 0, value_parser = clap::value_parser!(u8).range(0..=5))]
     preview_settings_tab: u8,
+    /// Initial Game Hub tab in local preview (Overview/Currency/Add-ons).
+    #[arg(long, default_value_t = 0, value_parser = clap::value_parser!(u8).range(0..=2))]
+    preview_game_tab: u8,
     #[arg(short, long)]
     allow_bf3: bool,
 }
@@ -555,6 +558,14 @@ impl AeAppEguiApp {
         }
         let debug = args.debug;
         let preview_page = args.preview_page.clone();
+        if is_preview {
+            cc.egui_ctx.data_mut(|data| {
+                data.insert_temp(
+                    egui::Id::new(("aeapp-game-hub-tab", "star-wars-jedi-survivor")),
+                    args.preview_game_tab as usize,
+                )
+            });
+        }
         if is_preview && preview_page == "profile" {
             cc.egui_ctx
                 .data_mut(|data| data.insert_temp(egui::Id::new("ea-own-profile-summary"), true));

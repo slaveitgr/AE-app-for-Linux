@@ -845,6 +845,19 @@ pub fn show(app: &mut AeAppEguiApp, ui: &mut Ui) {
             ),
         );
     }
+    if app.page_view == PageType::Games && app.library_details {
+        let mut backdrop = ui.child_ui(
+            Rect::from_min_max(
+                pos2(sidebar.right(), all.top() + 40.0),
+                pos2(friends.left(), all.bottom()),
+            ),
+            Layout::default(),
+            None,
+        );
+        let bounds = backdrop.max_rect();
+        backdrop.set_clip_rect(bounds);
+        crate::views::game_hub_view::backdrop(app, &backdrop, bounds);
+    }
     let top = Rect::from_min_size(center.min, vec2(center.width(), 32.0));
     ui.allocate_ui_at_rect(top, |ui| toolbar(app, ui));
     let mut content = Rect::from_min_max(center.min + vec2(0.0, 60.0), center.max);

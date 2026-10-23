@@ -91,6 +91,52 @@ impl UIImageCache {
         let mut cover_aspects = HashMap::<String, f32>::new();
         // User-owned artwork is optional and local. Preview never starts the loader.
         if let Some(directory) = crate::local_asset_directory() {
+            // Explicitly selected artwork wins over a directory-order/aspect fallback.
+            let selected = fs::read(directory.join("covers/catalog.json"))
+                .ok()
+                .and_then(|bytes| serde_json::from_slice::<Vec<serde_json::Value>>(&bytes).ok())
+                .unwrap_or_default();
+            for entry in selected {
+                let (Some(slug), Some(filename)) =
+                    (entry["slug"].as_str(), entry["filename"].as_str())
+                else {
+                    continue;
+                };
+                let normal = |value: &str| {
+                    !value.is_empty()
+                        && value.len() < 160
+                        && value.bytes().all(|b| b.is_ascii_alphanumeric() || b"-_.".contains(&b))
+                        && value != "."
+                        && value != ".."
+                };
+                if !normal(slug) || !normal(filename) {
+                    continue;
+                }
+                for (kind, path) in [
+                    (
+                        UIImageType::Cover(slug.to_owned()),
+                        directory.join("covers").join(filename),
+                    ),
+                    (
+                        UIImageType::Hero(slug.to_owned()),
+                        directory.join("promotions").join(format!("{slug}-hero.jpg")),
+                    ),
+                ] {
+                    if let Some(image) =
+                        fs::read(path).ok().and_then(|bytes| load_image_bytes(&bytes).ok())
+                    {
+                        cache.insert(
+                            kind.clone(),
+                            Some(ctx.load_texture(
+                                format!("Selected local artwork: {kind}"),
+                                image,
+                                TextureOptions::LINEAR,
+                            )),
+                        );
+                    }
+                }
+            }
+            let explicitly_selected: std::collections::HashSet<_> = cache.keys().cloned().collect();
             if let Ok(files) = fs::read_dir(directory.join("covers")) {
                 for entry in files.flatten() {
                     let path = entry.path();
@@ -107,6 +153,9 @@ impl UIImageCache {
                     let Some(slug) = path.file_stem().and_then(|stem| stem.to_str()) else {
                         continue;
                     };
+                    if explicitly_selected.contains(&UIImageType::Cover(slug.to_owned())) {
+                        continue;
+                    }
                     if let Some(image) =
                         fs::read(&path).ok().and_then(|bytes| load_image_bytes(&bytes).ok())
                     {

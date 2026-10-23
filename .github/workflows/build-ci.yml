@@ -68,7 +68,7 @@ jobs:
         run: |
           mkdir -p "$XDG_DATA_HOME" "$XDG_CONFIG_HOME" "$XDG_CACHE_HOME" "$XDG_RUNTIME_DIR" preview-artifacts
           chmod 700 "$XDG_RUNTIME_DIR"
-          for page in library home browse ea-play profile settings downloads; do
+          for page in library home browse ea-play profile settings downloads game; do
             timeout 60s xvfb-run -a -s '-screen 0 1440x900x24' \
               ./target/release/aeapp --preview --preview-page "$page" \
               --screenshot "$GITHUB_WORKSPACE/preview-artifacts/$page.png"

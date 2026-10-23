@@ -949,3 +949,13 @@ mod catalog_tests {
         }
     }
 }
+
+/// Known public URL only; callers never compose a guessed product slug.
+pub fn product_url(ui: &Ui, slug: &str) -> String {
+    catalog(ui)
+        .products
+        .into_iter()
+        .find(|p| p.record.slug == slug)
+        .map(|p| p.record.source_url)
+        .unwrap_or_else(|| "https://www.ea.com/games/library".to_owned())
+}

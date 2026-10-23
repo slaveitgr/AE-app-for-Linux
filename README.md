@@ -28,7 +28,7 @@ Preview mode uses local sample data. It starts no EA backend, performs no accoun
 ./target/release/aeapp --preview --screenshot /tmp/ae-linux-library.png
 ```
 
-The available preview pages are `library`, `home`, `browse`, `ea-play`, `profile`, `downloads`, `settings`, `game`, and `proton` (the game settings dialog). Screenshots require an X11 or Wayland display and an existing destination directory.
+The available preview pages are `library`, `home`, `browse`, `ea-play`, `profile`, `downloads`, `settings`, `game`, and `proton` (the game settings dialog). Use `--preview-page game --preview-game-tab 0`, `1`, or `2` to inspect the Game Hub tabs. Screenshots require an X11 or Wayland display and an existing destination directory.
 
 To create a local binary folder with launcher scripts after building:
 
@@ -75,7 +75,7 @@ The importer saves up to 30 actual products and 20 official artwork images. It p
 
 ## What this fork includes
 
-- A native library grid, game details, home, downloads, and settings interface.
+- Native Home, Browse, EA Play, profile, library and settings screens, plus a Windows-style Game Hub with Overview, Currency and Add-ons tabs.
 - A clearly marked local preview for exploring the UI without an EA account.
 - Account, library, download, import, cloud-save, and game-launch integration.
 - Per-game selection of an absolute Proton installation directory, Proton logging, and Esync/Fsync controls.
@@ -95,6 +95,8 @@ On Linux desktops with a StatusNotifierItem host, aeapp registers the installed 
 The Downloads view pauses and resumes the active transfer, cancels it while keeping downloaded files, moves a waiting game to the front with **Download next**, and removes waiting entries. Queue order and state are saved in `download_queue.json` under the normal aeapp data directory. Restarting the client restores the queue paused; choose **Resume** to continue. Complete files are rechecked, while any incomplete file restarts after a process restart. Pause/resume within the same running client retains the transfer in memory.
 
 **Stop** sends a termination request only to Linux game processes carrying this client's exact launch marker and matching the game's directory. Shared Wine helpers and the bootstrap are excluded. The active game remains tracked until the normal exit and cloud-save handling finish; a stop request does not immediately clear that state. **Open game folder** opens an installed game's directory. **Refresh library** explicitly reloads ownership and installed-game information.
+
+The Game Hub keeps Play/Stop/Download and the game menu connected to their existing actions. Owned add-ons use account library data. Currency offers, release date, age ratings, and achievement details remain marked as not loaded when no verified data is available; external product links lead to EA.com. Sample preview statistics are not displayed as account data.
 
 ## Current scope
 

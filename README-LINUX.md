@@ -188,3 +188,7 @@ python3 scripts/import-ea-catalog.py /path/to/local/ea-assets/catalog
 Σε Linux με διαθέσιμο StatusNotifierItem/AppIndicator host, το tray χρησιμοποιεί το εικονίδιο της εγκατάστασης και προσφέρει Open aeapp, Settings και Exit. Το Χ κρύβει το παράθυρο μόνο μετά από επιτυχή εγγραφή στο tray. Αν χαθεί το tray, κρυμμένο παράθυρο επανέρχεται. Χωρίς host το Χ τερματίζει κανονικά. Το preview δεν συνδέεται στο D-Bus και δεν δημιουργεί tray.
 
 Η τρέχουσα υλοποίηση παραθύρου χρησιμοποιεί X11/XWayland όταν υπάρχει `DISPLAY`, επειδή το native Wayland backend της δεν υποστηρίζει απόκρυψη. Το close-to-tray σε καθαρό Wayland χωρίς XWayland δεν έχει επαληθευτεί.
+
+## Game Hub των Windows
+
+Η οθόνη παιχνιδιού ακολουθεί τα Windows screenshots με Overview, Currency και Add-ons, εξώφυλλο, κάρτα παιχνιδιού και Download/Play/Stop. Το μενού παιχνιδιού διατηρεί Proton settings και άνοιγμα φακέλου. Τα add-ons χρησιμοποιούν την πραγματική βιβλιοθήκη, ενώ στοιχεία που δεν φορτώθηκαν δεν εμφανίζονται ως εικονικά στατιστικά, ημερομηνίες ή τιμές. Για τοπικό έλεγχο: `--preview --preview-page game --preview-game-tab 0` (ή 1/2).

@@ -81,3 +81,7 @@ The cache resides in local `ea-assets/catalog/products.json` with image paths re
 5. Track game compatibility separately. Reproducing the launcher cannot by itself supply Windows kernel or anti-cheat support on Linux.
 
 No live EA login, real game download, cloud-save write or real game launch was performed during this investigation. The current release is an experimental milestone toward the stated clone goal.
+
+## Windows game-hub follow-up
+
+The additional Windows screenshots guided the native Overview/Currency/Add-ons tab row, portrait game card, action placement, metadata column and background composition. The game actions reuse the existing download, launch, stop and settings handlers. Owned add-ons come from the account library; missing currency offers, achievements, release dates and age ratings remain explicitly unavailable. No screenshot account statistics or prices were copied as application data. The local Jedi preview now selects the official digital portrait pack art; a physical multi-platform cases image was rejected after visual inspection.

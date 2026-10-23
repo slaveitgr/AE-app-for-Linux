@@ -306,7 +306,7 @@ fn open_details(app: &mut AeAppEguiApp, game: &GameInfo) {
     app.game_sel = game.slug.clone();
     app.library_details = true;
 }
-fn primary_game_action(app: &mut AeAppEguiApp, game: &GameInfo) {
+pub(crate) fn primary_game_action(app: &mut AeAppEguiApp, game: &GameInfo) {
     if app.is_preview() {
         return;
     }
@@ -331,7 +331,7 @@ fn primary_game_action(app: &mut AeAppEguiApp, game: &GameInfo) {
         }
     }
 }
-fn game_menu(app: &mut AeAppEguiApp, ui: &mut Ui, game: &GameInfo) {
+pub(crate) fn game_menu(app: &mut AeAppEguiApp, ui: &mut Ui, game: &GameInfo) {
     ui.set_min_width(220.0);
     if ui.button("View game details").clicked() {
         open_details(app, game);
@@ -370,7 +370,7 @@ fn game_menu(app: &mut AeAppEguiApp, ui: &mut Ui, game: &GameInfo) {
             ui.close_menu();
         }
     }
-    if ui.add_enabled(game.installed, egui::Button::new("Proton & game settings")).clicked() {
+    if ui.button("Proton & game settings").clicked() {
         set_app_modal!(app, Some(PopupModal::GameSettings(game.slug.clone())));
         ui.close_menu();
     }
@@ -388,6 +388,9 @@ fn game_menu(app: &mut AeAppEguiApp, ui: &mut Ui, game: &GameInfo) {
         ui.close_menu();
     }
     if !game.dlc.is_empty() && ui.button("View add-ons").clicked() {
+        ui.ctx().data_mut(|data| {
+            data.insert_temp(egui::Id::new(("aeapp-game-hub-tab", &game.slug)), 2usize)
+        });
         open_details(app, game);
         ui.close_menu();
     }
@@ -675,179 +678,5 @@ pub fn games_view(app: &mut AeAppEguiApp, ui: &mut Ui) {
 }
 
 pub fn game_view_details_panel(app: &mut AeAppEguiApp, ui: &mut Ui) {
-    if ui.button("←  Back to library").clicked() {
-        app.library_details = false;
-    }
-    ui.add_space(17.0);
-    let Some(game) = app.games.get(&app.game_sel).cloned() else {
-        app.library_details = false;
-        return;
-    };
-    if matches!(game.details, GameDetailsWrapper::Unloaded) && !app.is_preview() {
-        let _ = app
-            .backend
-            .backend_commander
-            .send(AeAppLibRequest::GetGameDetailsRequest(game.slug.clone()));
-        if let Some(info) = app.games.get_mut(&game.slug) {
-            info.details = GameDetailsWrapper::Loading;
-        }
-    }
-    egui::ScrollArea::vertical().auto_shrink(false).show(ui, |ui| {
-        let (hero, _) = ui.allocate_exact_size(vec2(ui.available_width(), 265.0), Sense::hover());
-        artwork(app, ui, hero, &game);
-        ui.add_space(20.0);
-        ui.label(RichText::new(&game.name).size(31.0).strong());
-        ui.add_space(8.0);
-        ui.horizontal(|ui| {
-            shell::pill(
-                ui,
-                if game.installed {
-                    "Installed"
-                } else {
-                    "In your library"
-                },
-                shell::GREEN,
-            );
-            shell::pill(ui, "Windows · Proton", shell::MUTED);
-        });
-        ui.add_space(19.0);
-        ui.horizontal(|ui| {
-            let running = app.playing_game.as_ref() == Some(&game.slug);
-            if running {
-                if ui
-                    .add_enabled(
-                        !app.is_preview(),
-                        egui::Button::new("■  Stop game").min_size(vec2(140.0, 42.0)),
-                    )
-                    .clicked()
-                {
-                    request_game_action(app, AeAppLibRequest::StopGameRequest(game.offer.clone()));
-                }
-            } else {
-                let queued = app.install_queue.contains_key(&game.offer)
-                    || app.installing_now.as_ref().is_some_and(|q| q.offer == game.offer);
-                ui.add_enabled_ui(
-                    !app.is_preview() && (queued || app.playing_game.is_none()),
-                    |ui| {
-                        let label = if queued {
-                            "View download"
-                        } else if game.installed {
-                            "▶  Play"
-                        } else {
-                            "↓  Download"
-                        };
-                        if shell::primary_button(ui, label).clicked() {
-                            if queued {
-                                app.page_view = crate::PageType::Downloads;
-                            } else if game.installed {
-                                if !app.settings.ignore_ood_games
-                                    && game.version.installed != game.version.latest
-                                {
-                                    set_app_modal!(
-                                        app,
-                                        Some(PopupModal::GameLaunchOOD(game.slug.clone()))
-                                    );
-                                } else {
-                                    let settings =
-                                        app.settings.game_settings.get(&game.slug).cloned();
-                                    app.playing_game = Some(game.slug.clone());
-                                    if !request_game_action(
-                                        app,
-                                        AeAppLibRequest::StartGameRequest(game.clone(), settings),
-                                    ) {
-                                        app.playing_game = None;
-                                    }
-                                }
-                            } else {
-                                set_app_modal!(
-                                    app,
-                                    Some(PopupModal::GameInstall(game.slug.clone()))
-                                );
-                            }
-                        }
-                    },
-                );
-            }
-            if ui.add_sized(vec2(150.0, 42.0), egui::Button::new("Manage game")).clicked() {
-                set_app_modal!(app, Some(PopupModal::GameSettings(game.slug.clone())));
-            }
-            if ui
-                .add_enabled(
-                    !app.is_preview() && game.installed,
-                    egui::Button::new("Open game folder").min_size(vec2(150.0, 42.0)),
-                )
-                .clicked()
-            {
-                request_game_action(
-                    app,
-                    AeAppLibRequest::OpenGameFolderRequest(game.offer.clone()),
-                );
-            }
-        });
-        if app.is_preview() {
-            ui.label(
-                RichText::new("Demo only. No launch, installation or EA requests are made.")
-                    .size(12.0)
-                    .color(shell::MUTED),
-            );
-        }
-        ui.add_space(23.0);
-        ui.separator();
-        ui.add_space(16.0);
-        ui.heading("Game details");
-        if let GameDetailsWrapper::Available(details) = &game.details {
-            if app.is_preview() {
-                ui.label(
-                    RichText::new("Sample metadata. No account statistics are loaded.")
-                        .color(shell::MUTED),
-                );
-            } else if details.time == 0 && details.achievements_total == 0 {
-                ui.label(
-                    RichText::new("Playtime and achievements are not loaded.").color(shell::MUTED),
-                );
-            } else {
-                ui.horizontal(|ui| {
-                    ui.label(
-                        RichText::new(format!("{:.1} hours played", details.time as f32 / 10.0))
-                            .color(shell::MUTED),
-                    );
-                    ui.separator();
-                    ui.label(
-                        RichText::new(format!(
-                            "{} / {} achievements",
-                            details.achievements_unlocked, details.achievements_total
-                        ))
-                        .color(shell::MUTED),
-                    );
-                });
-            }
-            if !details.path.is_empty() {
-                ui.add_space(8.0);
-                ui.label(RichText::new(&details.path).size(12.0).color(shell::MUTED));
-            }
-            ui.add_space(18.0);
-            if let Some(requirements) = &details.system_requirements_min {
-                ui.heading("Minimum requirements");
-                egui_demo_lib::easy_mark::easy_mark(ui, requirements);
-            }
-            if let Some(requirements) = &details.system_requirements_rec {
-                ui.add_space(12.0);
-                ui.heading("Recommended requirements");
-                egui_demo_lib::easy_mark::easy_mark(ui, requirements);
-            }
-        } else {
-            ui.horizontal(|ui| {
-                ui.spinner();
-                ui.label("Loading game details…");
-            });
-        }
-        if !game.dlc.is_empty() {
-            ui.add_space(20.0);
-            ui.heading("Additional content");
-            for content in &game.dlc {
-                ui.label(content.offer().display_name());
-            }
-        }
-        ui.add_space(20.0);
-    });
+    super::game_hub_view::show(app, ui);
 }
