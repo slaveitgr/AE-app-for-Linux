@@ -24,13 +24,17 @@ use xz2::read::XzDecoder;
 
 use crate::core::launch::ProtonLaunchOptions;
 use crate::util::{
-    github::{fetch_github_release, fetch_github_releases, github_download_asset, GithubRelease},
+    github::{
+        fetch_github_release, fetch_github_releases, github_download_asset, GithubAsset,
+        GithubRelease,
+    },
     native::{aeapp_dir, DownloadError, NativeError, SafeParent, SafeStr, WineError},
     registry::RegistryError,
 };
 
 lazy_static! {
-    static ref PROTON_PATTERN: Regex = Regex::new(r"GE-Proton\d+-\d+\.tar\.gz").unwrap();
+    static ref PROTON_PATTERN: Regex =
+        Regex::new(r"^GE-Proton\d+-\d+(?:-(x86_64|aarch64))?\.tar\.gz$").unwrap();
 }
 
 // A Proton verb to use
@@ -239,20 +243,48 @@ pub(crate) async fn install_runtime(
     set_versions(versions)
 }
 
+fn proton_asset_for_arch<'a>(release: &'a GithubRelease, arch: &str) -> Option<&'a GithubAsset> {
+    // Current releases contain ARM and x86_64 archives together. Prefer an
+    // explicit architecture match; legacy unsuffixed GE archives were x86_64.
+    let explicit = release.assets.iter().find(|asset| {
+        PROTON_PATTERN
+            .captures(&asset.name)
+            .and_then(|captures| captures.get(1).map(|value| value.as_str() == arch))
+            .unwrap_or(false)
+    });
+    explicit.or_else(|| {
+        (arch == "x86_64")
+            .then(|| {
+                release.assets.iter().find(|asset| {
+                    PROTON_PATTERN
+                        .captures(&asset.name)
+                        .is_some_and(|captures| captures.get(1).is_none())
+                })
+            })
+            .flatten()
+    })
+}
+
+fn select_wine_release(
+    releases: Vec<GithubRelease>,
+    arch: &str,
+) -> Result<GithubRelease, WineError> {
+    releases
+        .into_iter()
+        .find(|release| {
+            !release.draft
+                && !release.prerelease
+                && !release.tag_name.ends_with("LoL")
+                && proton_asset_for_arch(release, arch).is_some()
+        })
+        .ok_or(WineError::Fetch)
+}
+
 fn get_wine_release() -> Result<GithubRelease, WineError> {
-    let releases = fetch_github_releases("GloriousEggroll", "proton-ge-custom")?;
-
-    let mut release = None;
-    for r in releases {
-        if r.tag_name.ends_with("LoL") {
-            continue;
-        }
-
-        release = Some(r);
-        break;
-    }
-
-    release.ok_or(WineError::Fetch)
+    select_wine_release(
+        fetch_github_releases("GloriousEggroll", "proton-ge-custom")?,
+        env::consts::ARCH,
+    )
 }
 
 pub async fn run_wine_command<I: IntoIterator<Item = T>, T: AsRef<OsStr>>(
@@ -373,14 +405,8 @@ pub async fn run_wine_command_with_options<I: IntoIterator<Item = T>, T: AsRef<O
 
 pub(crate) async fn install_wine() -> Result<(), NativeError> {
     let release = get_wine_release()?;
-    let asset = match release
-        .assets
-        .iter()
-        .find(|x| PROTON_PATTERN.captures(&x.name).is_some())
-    {
-        Some(asset) => asset,
-        None => return Err(NativeError::Wine(WineError::Fetch)),
-    };
+    let asset = proton_asset_for_arch(&release, env::consts::ARCH)
+        .ok_or(NativeError::Wine(WineError::Fetch))?;
 
     let dir = aeapp_dir()?.join("downloads");
     create_dir_all(&dir)?;
@@ -594,6 +620,81 @@ pub async fn get_aeapp_wine_registry_value(
 mod tests {
     use super::*;
     use std::{ffi::OsString, time::SystemTime};
+
+    fn release(tag: &str, names: &[&str]) -> GithubRelease {
+        serde_json::from_value(serde_json::json!({
+            "tag_name": tag,
+            "assets": names.iter().map(|name| serde_json::json!({
+                "name": name, "size": 1, "browser_download_url": "https://example.invalid/proton"
+            })).collect::<Vec<_>>()
+        }))
+        .unwrap()
+    }
+
+    #[test]
+    fn current_proton_assets_select_the_host_architecture_and_not_checksums() {
+        let value = release(
+            "GE-Proton11-11",
+            &[
+                "GE-Proton11-11-aarch64.sha512sum",
+                "GE-Proton11-11-aarch64.tar.gz",
+                "GE-Proton11-11-x86_64.sha512sum",
+                "GE-Proton11-11-x86_64.tar.gz",
+            ],
+        );
+        assert_eq!(
+            proton_asset_for_arch(&value, "x86_64").unwrap().name,
+            "GE-Proton11-11-x86_64.tar.gz"
+        );
+        assert_eq!(
+            proton_asset_for_arch(&value, "aarch64").unwrap().name,
+            "GE-Proton11-11-aarch64.tar.gz"
+        );
+        assert!(proton_asset_for_arch(&value, "riscv64").is_none());
+    }
+
+    #[test]
+    fn legacy_proton_archives_are_only_a_fallback_for_x86_64() {
+        let value = release("GE-Proton10-1", &["GE-Proton10-1.tar.gz"]);
+        assert!(proton_asset_for_arch(&value, "x86_64").is_some());
+        assert!(proton_asset_for_arch(&value, "aarch64").is_none());
+        let both = release(
+            "GE-Proton11-11",
+            &["GE-Proton11-11.tar.gz", "GE-Proton11-11-x86_64.tar.gz"],
+        );
+        assert_eq!(
+            proton_asset_for_arch(&both, "x86_64").unwrap().name,
+            "GE-Proton11-11-x86_64.tar.gz"
+        );
+        let invalid = release(
+            "invalid",
+            &[
+                "prefix-GE-Proton11-11.tar.gz",
+                "GE-Proton11-11-x86_64.tar.gz.backup",
+            ],
+        );
+        assert!(proton_asset_for_arch(&invalid, "x86_64").is_none());
+    }
+
+    #[test]
+    fn runtime_release_selection_skips_unusable_and_unstable_releases() {
+        let mut prerelease = release("GE-Proton11-12", &["GE-Proton11-12-x86_64.tar.gz"]);
+        prerelease.prerelease = true;
+        let mut draft = release("GE-Proton11-13", &["GE-Proton11-13-x86_64.tar.gz"]);
+        draft.draft = true;
+        let selected = select_wine_release(
+            vec![
+                prerelease,
+                draft,
+                release("arm-only", &["GE-Proton11-11-aarch64.tar.gz"]),
+                release("GE-Proton11-11", &["GE-Proton11-11-x86_64.tar.gz"]),
+            ],
+            "x86_64",
+        )
+        .unwrap();
+        assert_eq!(selected.tag_name, "GE-Proton11-11");
+        assert!(select_wine_release(vec![], "x86_64").is_err());
+    }
 
     struct TempProton(PathBuf);
 

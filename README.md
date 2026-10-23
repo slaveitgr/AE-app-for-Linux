@@ -141,3 +141,6 @@ The EA Play badge appears below the account name when the existing EA subscripti
 
 
 The bottom-left Download manager button stays visible on every page. An active transfer shows the current game, real percentage and a progress ring; paused, failed, and finalizing states use the same status as the full Downloads view. Clicking it only navigates to Downloads. An idle queue keeps the shortcut available. Use `--preview --preview-page home --preview-active-download` to inspect the local sample indicator.
+
+
+Managed GE-Proton selection accepts current CPU-specific archive names, prefers the host architecture and stable releases, and retains legacy unsuffixed archives only for x86_64. This fixes the missing-compatible-release error during post-download setup. Saved game files and queue entries can be retried through Resume/Retry.

@@ -18,6 +18,10 @@ pub struct GithubAsset {
 pub struct GithubRelease {
     pub tag_name: String,
     pub assets: Vec<GithubAsset>,
+    #[serde(default)]
+    pub prerelease: bool,
+    #[serde(default)]
+    pub draft: bool,
 }
 
 pub fn fetch_github_releases(
