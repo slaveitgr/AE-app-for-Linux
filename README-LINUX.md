@@ -205,3 +205,7 @@ The EA Play badge appears below the account name when the existing EA subscripti
 
 
 Η επιλογή managed GE-Proton υποστηρίζει τα σύγχρονα archives `-x86_64.tar.gz` και `-aarch64.tar.gz`, επιλέγοντας τη σωστή αρχιτεκτονική του υπολογιστή. Τα παλιότερα archives χωρίς κατάληξη αρχιτεκτονικής γίνονται δεκτά μόνο για x86_64. Draft/prerelease εκδόσεις και αρχεία checksum αγνοούνται. Αυτό διορθώνει το σφάλμα `couldn’t find suitable wine release` που μπορούσε να σταματήσει την τελική προετοιμασία μετά τη λήψη. Η ήδη αποθηκευμένη ουρά συνεχίζεται με Resume/Retry.
+
+### Παλιός installer DirectX σε Proton
+
+Το managed Wine prefix εφαρμόζει κενό override `mscoree` μόνο στο `DXSETUP.exe`, ώστε ο παλιός έλεγχος Managed DirectX/.NET να μη σταματά την εγκατάσταση των native βιβλιοθηκών. Παραμένουν οι κανονικές παράμετροι του manifest, το DirectX, οι bundled Visual C++ installers, η εγγραφή του παιχνιδιού και ο έλεγχος exit code. Δεν προστίθεται global DLL override. Σε απομονωμένο prefix με GE-Proton11-11 αναπαράχθηκε το DXSETUP `-9` του Payback και μετά τη διόρθωση ολοκληρώθηκαν DirectX, όλα τα bundled VC redistributables και Touchup με exit 0. Η εκκίνηση του παιχνιδιού/DRM δεν έχει ακόμη επαληθευτεί.

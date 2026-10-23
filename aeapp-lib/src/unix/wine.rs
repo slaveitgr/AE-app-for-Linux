@@ -480,6 +480,13 @@ pub async fn setup_wine_registry_with_options(
     // This supports text values only at the moment
     // if you need a dword - implement it
     let entries: &[(&str, &[(&str, &str)])] = &[
+        // Legacy DXSETUP aborts its native DirectX install when its optional
+        // Managed DirectX probe finds Wine's mscoree without a .NET installroot.
+        // Scope this to DXSETUP so games and other redistributables keep CLR.
+        (
+            "HKEY_CURRENT_USER\\Software\\Wine\\AppDefaults\\DXSETUP.exe\\DllOverrides",
+            &[("mscoree", "")],
+        ),
         (
             "HKEY_LOCAL_MACHINE\\Software\\Electronic Arts\\EA Desktop",
             &[("InstallSuccessful", "true")],

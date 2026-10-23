@@ -144,3 +144,7 @@ The bottom-left Download manager button stays visible on every page. An active t
 
 
 Managed GE-Proton selection accepts current CPU-specific archive names, prefers the host architecture and stable releases, and retains legacy unsuffixed archives only for x86_64. This fixes the missing-compatible-release error during post-download setup. Saved game files and queue entries can be retried through Resume/Retry.
+
+### Legacy DirectX installer compatibility
+
+The managed Wine prefix gives `DXSETUP.exe` an application-specific empty `mscoree` override. This prevents the obsolete Managed DirectX/.NET probe from aborting the native redistributable installer on Proton. Normal manifest install arguments, native DirectX and bundled Visual C++ setup, game registration, and exit-code validation remain in use. Games and other installers retain their CLR configuration; no global DLL override is added. On GE-Proton11-11, an isolated Payback installer reproduced DXSETUP `-9`, then completed DirectX and all bundled VC redistributables with Touchup exit 0 after the scoped fix. This does not verify game launch or DRM.
